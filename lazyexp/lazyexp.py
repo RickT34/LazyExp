@@ -39,8 +39,7 @@ def run_cmd(command: list[str], output_file: Path):
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
         
-def run_exps(name:str, envs: list[ExpEnv], devices:list[int], cmd_maker):
-    dumpEnvs(envs, name)
+def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker):
     running:dict[int, tuple[Process, ExpEnv]] = {}
     failed = []
     def on_finish(pe):

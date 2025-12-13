@@ -30,7 +30,6 @@ class ModelEnv:
 @dataclasses.dataclass
 class DatasetEnv:
     path: str
-    range: str = "All"
     tags: dict = dataclasses.field(default_factory=dict)
     filetype: str = "json"
 
@@ -45,10 +44,6 @@ class DatasetEnv:
 
     def __post_init__(self):
         self.name = self.get_ds_name(self.path)
-        if not re.match(r"^\d+[:q]\d+$", self.range) and self.range != "All":
-            raise ValueError(f"Dataset range {self.range} invalid")
-        if self.range == "1q1":
-            self.range = "All"
             
     @staticmethod
     def ds_split(l:int, m:int, n:int):
@@ -58,17 +53,18 @@ class DatasetEnv:
     def read(self):
         return json.load(open(self.path, "r"))
     
-    def get_ds_slice(self, l):
-        if self.range == "All":
+    @staticmethod
+    def get_ds_slice(range, l):
+        if range == "All":
             return slice(0, l)
-        elif "q" in self.range:
-            m, n = self.range.split("q")
+        elif "q" in range:
+            m, n = range.split("q")
             m = int(m)
             n = int(n)
-            start, end = self.ds_split(l, m, n)
+            start, end = DatasetEnv.ds_split(l, m, n)
             return slice(start, end)
         else:
-            m, n = self.range.split(":")
+            m, n = range.split(":")
             m = int(m)
             n = int(n)
             return slice(m, n)
@@ -103,16 +99,9 @@ class ExpEnv:
         if not self.model.check_exists():
             raise FileNotFoundError(f"Model path {self.model.path} not found")
 
-        self.filename = f"{self.dataset.range}.json"
-
-    def get_prefile_path(self, prefiles_dir: str):
-        prefiledir = Path(prefiles_dir) / self.model.name / self.dataset.name
-        prefiledir.mkdir(parents=True, exist_ok=True)
-        pre_file = prefiledir / self.filename
-        return pre_file
 
     def get_name(self):
-        return f"Exp_{self.model.name}_{self.dataset.name}_{self.label}_{self.dataset.range}"
+        return f"Exp_{self.model.name}_{self.dataset.name}_{self.label}"
 
     def get_output_dir(self):
         outputdir = (
@@ -125,9 +114,9 @@ class ExpEnv:
         outputdir.mkdir(parents=True, exist_ok=True)
         return outputdir
 
-    def get_output_path(self):
+    def get_output_path(self, filename: str = "result.json"):
         outputdir = self.get_output_dir()
-        output_file = outputdir / self.filename
+        output_file = outputdir / filename
         return output_file
     
     def to_json(self):
@@ -149,18 +138,16 @@ class ExpEnv:
         return ExpEnv(**d)
 
 
-ExpHistoryDir = Path("exp_history")
-
-def dumpEnvs(envs: list[ExpEnv], name:str):
-    path = ExpHistoryDir / f"{name}.json"
+def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path):
+    path = dir / f"{name}.json"
     #assert not path.exists(), f"exp {name} already exists"
     l = []
     for e in envs:
         l.append(dataclasses.asdict(e))
     return json.dump(l, open(path, "w"), indent=4)
 
-def loadEnvs(name:str):
-    path = ExpHistoryDir / f"{name}.json"
+def loadEnvs(name:str, dir: Path) -> list[ExpEnv]:
+    path = dir / f"{name}.json"
     l = json.load(open(path, "r"))
     envs = []
     for d in l:
