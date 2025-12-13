@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lazyexp"
+version = "0.0.1"
+description = "Lazy Experiment"
+authors = [{ name = "RickT", email = "227428973@qq.com" }]
+requires-python = ">=3.7"
+
+
+dependencies = [
+]
+
+# 自动发现包 (通常不需要改，除非你的目录结构很特殊)
+[tool.setuptools.packages.find]
+where = ["."]

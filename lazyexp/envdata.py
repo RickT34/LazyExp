@@ -1,4 +1,4 @@
-from lazyenv import *
+from .lazyenv import *
 
 DIR_EXP_HISTORY = Path('exp_history')
 
@@ -36,11 +36,11 @@ DatasetCF1024notest = DatasetEnv("data/dataset/cf_formatted_k1024_notest.json")
 DatasetCF1024 = DatasetEnv("data/dataset/cf_formatted_k1024.json")
 
 
-DatasetOT114k = DatasetEnv("data/dataset/OpenThoughts-114k")
-DatasetOT10k = DatasetEnv("data/dataset/OpenThoughts-10k", tags={"from_disk": True})
+DatasetOT114k = DatasetEnv("data/dataset/OpenThoughts-114k", filetype="hf")
+DatasetOT10k = DatasetEnv("data/dataset/OpenThoughts-10k", filetype="hf")
 
-DatasetTULU = DatasetEnv("data/dataset/tulu-3-sft-mixture")
-DatasetTULU10k = DatasetEnv("data/dataset/tulu-3-sft-mixture-10k", tags={"from_disk": True})
+DatasetTULU = DatasetEnv("data/dataset/tulu-3-sft-mixture", filetype="hf")
+DatasetTULU10k = DatasetEnv("data/dataset/tulu-3-sft-mixture-10k", filetype="hf")
 
-
+AlgoNULL = AlgoEnv("null", {})
 

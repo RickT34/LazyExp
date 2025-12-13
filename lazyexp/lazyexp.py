@@ -2,8 +2,8 @@ import subprocess
 import time
 from multiprocessing import Process
 from pathlib import Path
-import mail
-from env import ExpEnv, dumpEnvs
+from .mail import send_default
+from .lazyenv import ExpEnv, dumpEnvs
 
 
 def run_cmd(command: list[str], output_file: Path):
@@ -67,7 +67,7 @@ def run_exps(name:str, envs: list[ExpEnv], devices:list[int], cmd_maker):
             time.sleep(3)
             d = alloc_device()
         cmd = cmd_maker(env, d)
-        logdir = env.get_output_path().parent
+        logdir = env.get_output_dir()
         log_file = logdir / f"exp_{get_timestamp()}.log"
         p = Process(target=run_cmd, args=(cmd, log_file))
         p.start()
@@ -78,6 +78,6 @@ def run_exps(name:str, envs: list[ExpEnv], devices:list[int], cmd_maker):
     if failed:
         print(f"Failed exps: {failed}")
     try:
-        mail.send_default("ICT-v2", f"Exp Done: {envs}\n\n\nFailed: {failed}")
+        send_default("ICT-v2", f"Exp Done: {envs}\n\n\nFailed: {failed}")
     except:
         print("Failed to send email.")

@@ -13,10 +13,10 @@ class ModelEnv:
     path: str
     layers: int
     tags: dict = dataclasses.field(default_factory=dict)
+    filetype: str = "hf"
 
-    def __post_init__(self):
-        if not os.path.exists(self.path):
-            print(f"Warning: Model {self.name} not found at {self.path}")
+    def check_exists(self):
+        return os.path.exists(self.path)
 
     def get_layers_scattered(self, step: int, count:int = 1):
         i = 0
@@ -32,16 +32,18 @@ class DatasetEnv:
     path: str
     range: str = "All"
     tags: dict = dataclasses.field(default_factory=dict)
+    filetype: str = "json"
 
     @staticmethod
     def get_ds_name(data_json: str):
         ds_name = os.path.basename(data_json)
         ds_name = ds_name[: ds_name.rfind(".")]
         return ds_name
+    
+    def check_exists(self):
+        return os.path.exists(self.path)
 
     def __post_init__(self):
-        if not os.path.exists(self.path):
-            print(f"Warning: Dataset {self.path} not found")
         self.name = self.get_ds_name(self.path)
         if not re.match(r"^\d+[:q]\d+$", self.range) and self.range != "All":
             raise ValueError(f"Dataset range {self.range} invalid")
@@ -96,6 +98,10 @@ class ExpEnv:
             v = getattr(self, k)
             if not isinstance(v, c):
                 setattr(self, k, c(**v))
+        if not self.dataset.check_exists():
+            raise FileNotFoundError(f"Dataset path {self.dataset.path} not found")
+        if not self.model.check_exists():
+            raise FileNotFoundError(f"Model path {self.model.path} not found")
 
         self.filename = f"{self.dataset.range}.json"
 

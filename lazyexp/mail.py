@@ -7,9 +7,8 @@ from email.parser import Parser
 from email.header import decode_header
 from email.utils import parseaddr
 import argparse
-import json
+import os
 
-DEFAULT_KEYS = json.load(open("mail_keys.json"))
 
 
 class SmtpServer:
@@ -60,6 +59,12 @@ def send_default(title: str, content: str, attachments: list[str] | None = None)
         content (str): mail content
         attachments (list[str] | None, optional): attachments. Defaults to None.
     """
+    keysraw = os.environ.get("LAZYEXP_MAIL_KEYS", "smtphost=username=password").split("=")
+    DEFAULT_KEYS = {
+        "smtphost": keysraw[0],
+        "username": keysraw[1],
+        "password": keysraw[2],
+    }
     mail_server = SmtpServer(
         host=DEFAULT_KEYS["smtphost"],
         username=DEFAULT_KEYS["username"],
