@@ -139,6 +139,7 @@ class ExpEnv:
 
 
 def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path):
+    dir.mkdir(parents=True, exist_ok=True)
     path = dir / f"{name}.json"
     #assert not path.exists(), f"exp {name} already exists"
     l = []

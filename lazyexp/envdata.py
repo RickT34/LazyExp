@@ -1,7 +1,7 @@
 from .lazyenv import *
 
 DIR_EXP_HISTORY = Path('exp_history')
-DIR_DATA = 'data'
+DIR_DATA = '/Data2/tangrui/trsdata'
 
 ModelLLaMA3_8B = ModelEnv("llama3-8b", f"{DIR_DATA}/models/LLama-3-8B-Instruct", 32)
 ModelQwen25_7B = ModelEnv("qwen2.5-7b", f"{DIR_DATA}/models/Qwen2.5-7B-Instruct", 28)
