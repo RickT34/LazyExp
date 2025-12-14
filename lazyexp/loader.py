@@ -3,12 +3,14 @@ from .lazyenv import *
 
 def load_dataset(dataset: DatasetEnv):
     from datasets import load_dataset as hf_load_dataset
-    from datasets import Dataset
+    from datasets import Dataset, load_from_disk
     import json
 
     """根据 DatasetEnv 加载数据集"""
     if dataset.filetype == "hf":
         ds = hf_load_dataset(dataset.path, **dataset.tags.get("loader_args", {}))
+    elif dataset.filetype == "hf_disk":
+        ds = load_from_disk(dataset.path, **dataset.tags.get("loader_args", {}))
     elif dataset.filetype == "json":
         with open(dataset.path, "r") as f:
             data = json.load(f)
