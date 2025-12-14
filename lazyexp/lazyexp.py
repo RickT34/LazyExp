@@ -1,6 +1,6 @@
 import subprocess
 import time
-from multiprocessing import Process
+from threading import Thread
 from pathlib import Path
 from .mail import send_default
 from .lazyenv import ExpEnv, dumpEnvs
@@ -39,8 +39,8 @@ def run_cmd(command: list[str], output_file: Path):
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
         
-def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker):
-    running:dict[int, tuple[Process, ExpEnv]] = {}
+def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=True):
+    running:dict[int, tuple[Thread, ExpEnv]] = {}
     failed = []
     def on_finish(pe):
         p, env = pe
@@ -65,10 +65,12 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker):
         while d is None:
             time.sleep(3)
             d = alloc_device()
-        cmd = cmd_maker(env, d)
+        envpath = env.get_output_path("env.json")
+        env.dump(envpath)
+        cmd = cmd_maker(envpath, d)
         logdir = env.get_output_dir()
         log_file = logdir / f"exp_{get_timestamp()}.log"
-        p = Process(target=run_cmd, args=(cmd, log_file))
+        p = Thread(target=run_cmd, args=(cmd, log_file))
         p.start()
         running[d]=(p,env)
     for v in running.values():
@@ -77,6 +79,7 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker):
     if failed:
         print(f"Failed exps: {failed}")
     try:
-        send_default("ICT-v2", f"Exp Done: {envs}\n\n\nFailed: {failed}")
+        if mailsend:
+            send_default("ICT-v2", f"Exp Done: {envs}\n\n\nFailed: {failed}")
     except:
         print("Failed to send email.")
