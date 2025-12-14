@@ -101,7 +101,7 @@ class ExpEnv:
 
 
     def get_name(self):
-        return f"Exp_{self.model.name}_{self.dataset.name}_{self.label}"
+        return f"Exp_{self.model.name}_{self.dataset.name}_{self.algo.name}_{self.label}"
 
     def get_output_dir(self):
         outputdir = (
@@ -136,6 +136,9 @@ class ExpEnv:
         with open(path, "r") as f:
             d = json.load(f)
         return ExpEnv(**d)
+
+    def __str__(self) -> str:
+        return self.get_name()
 
 
 def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path):

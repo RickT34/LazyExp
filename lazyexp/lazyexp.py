@@ -41,8 +41,15 @@ def get_timestamp():
         
 def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=True):
     running:dict[int, tuple[Thread, ExpEnv]] = {}
+    
+    fails = []
     def on_finish(pe):
-        pass
+        p, env = pe
+        if not env.get_output_path():
+            print(f"实验 {env} 失败，没有生成输出文件。")
+            fails.append(env)
+        del p
+            
     def alloc_device():
         for i in devices:
             if i not in running:
@@ -72,7 +79,9 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=Tru
         v[0].join()
         on_finish(v)
     try:
+        summery = f"Exp Done: \n{'\n'.join([str(e) for e in envs])}\n\nFails: \n{'\n'.join([str(e) for e in fails])}"
+        print(summery)
         if mailsend:
-            send_default("ICT-v2", f"Exp Done: {envs}")
-    except:
-        print("Failed to send email.")
+            send_default("ICT-v2", summery)
+    except Exception as e:
+        print("Failed to send email:", e)
