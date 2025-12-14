@@ -3,7 +3,7 @@ import time
 from threading import Thread
 from pathlib import Path
 from .mail import send_default
-from .lazyenv import ExpEnv, dumpEnvs
+from .lazyenv import ExpEnv
 
 
 def run_cmd(command: list[str], output_file: Path):
@@ -41,13 +41,8 @@ def get_timestamp():
         
 def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=True):
     running:dict[int, tuple[Thread, ExpEnv]] = {}
-    failed = []
     def on_finish(pe):
-        p, env = pe
-        assert p.exitcode is not None
-        if p.exitcode != 0:
-            failed.append(env)
-        p.close()
+        pass
     def alloc_device():
         for i in devices:
             if i not in running:
@@ -76,10 +71,8 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=Tru
     for v in running.values():
         v[0].join()
         on_finish(v)
-    if failed:
-        print(f"Failed exps: {failed}")
     try:
         if mailsend:
-            send_default("ICT-v2", f"Exp Done: {envs}\n\n\nFailed: {failed}")
+            send_default("ICT-v2", f"Exp Done: {envs}")
     except:
         print("Failed to send email.")
