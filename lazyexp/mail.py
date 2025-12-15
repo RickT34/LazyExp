@@ -59,7 +59,7 @@ def send_default(title: str, content: str, attachments: list[str] | None = None)
         content (str): mail content
         attachments (list[str] | None, optional): attachments. Defaults to None.
     """
-    keysraw = os.environ.get("LAZYEXP_MAIL_KEYS", "smtphost=username=password").split("=")
+    keysraw = os.environ["LAZYEXP_MAIL_KEYS"].split(";")
     DEFAULT_KEYS = {
         "smtphost": keysraw[0],
         "username": keysraw[1],
