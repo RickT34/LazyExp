@@ -45,7 +45,7 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=Tru
     fails = []
     def on_finish(pe):
         p, env = pe
-        if not env.get_output_path():
+        if not env.get_output_path().exists():
             print(f"实验 {env} 失败，没有生成输出文件。")
             fails.append(env)
         del p
@@ -61,7 +61,7 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=Tru
         
     for env in envs:
         if env.get_output_path().exists():
-            print(f"Skipping {env} because output file exists.")
+            print(f"Skipping {env}.")
             continue
         d = None
         while d is None:
