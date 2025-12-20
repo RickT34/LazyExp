@@ -1,9 +1,8 @@
 from .lazyenv import *
+from datasets import Dataset, load_from_disk
 
-
-def load_dataset(dataset: DatasetEnv):
+def load_dataset(dataset: DatasetEnv)->Dataset:
     from datasets import load_dataset as hf_load_dataset
-    from datasets import Dataset, load_from_disk
     import json
 
     """根据 DatasetEnv 加载数据集"""
@@ -17,7 +16,9 @@ def load_dataset(dataset: DatasetEnv):
         ds = Dataset.from_list(data)
     else:
         raise NotImplementedError(f"Unsupported dataset filetype: {dataset.filetype}")
-    return ds
+    if not isinstance(ds, Dataset):
+        print(f"Warning: dataset {dataset.path} is not a Dataset instance, but {type(ds)}")
+    return ds # type: ignore
 
 
 def load_model(
@@ -28,6 +29,7 @@ def load_model(
     tokenizer_args = dict(padding_side="left", trust_remote_code=True)
     tokenizer_args.update(model.tags.get("tokenizer_args", {}))
     tokenizer_args.update(tokenizer_args or {})
+    print("Loading model:", model.path)
     tokenizer = AutoTokenizer.from_pretrained(model.path, **tokenizer_args)
     model_args = dict(device_map="auto", trust_remote_code=True)
     model_args.update(model.tags.get("model_args", {}))

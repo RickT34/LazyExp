@@ -26,6 +26,9 @@ class ModelEnv:
         if i - step + count < self.layers:
             yield [self.layers-1]
 
+    def __hash__(self) -> int:
+        return hash(repr(self))
+
 
 @dataclasses.dataclass
 class DatasetEnv:
@@ -35,6 +38,11 @@ class DatasetEnv:
 
     @staticmethod
     def get_ds_name(data_json: str):
+        ds_name = os.path.basename(data_json)
+        return ds_name
+    
+    @staticmethod
+    def get_ds_name_legency(data_json: str):
         ds_name = os.path.basename(data_json)
         ds_name = ds_name[: ds_name.rfind(".")]
         return ds_name
@@ -68,12 +76,17 @@ class DatasetEnv:
             m = int(m)
             n = int(n)
             return slice(m, n)
+        
+    def __hash__(self) -> int:
+        return hash(repr(self))
 
 
 @dataclasses.dataclass
 class AlgoEnv:
     name: str
     tags: dict = dataclasses.field(default_factory=dict)
+    def __hash__(self) -> int:
+        return hash(repr(self))
 
 
 @dataclasses.dataclass
@@ -113,6 +126,17 @@ class ExpEnv:
         )
         outputdir.mkdir(parents=True, exist_ok=True)
         return outputdir
+    
+    def get_output_dir_legency(self):
+        outputdir = (
+            Path(self.outputs_dir)
+            / self.model.name
+            / self.dataset.get_ds_name_legency(self.dataset.path)
+            / self.label
+            / self.algo.name
+        )
+        outputdir.mkdir(parents=True, exist_ok=True)
+        return outputdir
 
     def get_output_path(self, filename: str = "result.json"):
         outputdir = self.get_output_dir()
@@ -139,6 +163,9 @@ class ExpEnv:
 
     def __str__(self) -> str:
         return self.get_name()
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
 
 
 def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path):

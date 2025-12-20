@@ -4,9 +4,10 @@ from threading import Thread
 from pathlib import Path
 from .mail import send_default
 from .lazyenv import ExpEnv
+import os
 
 
-def run_cmd(command: list[str], output_file: Path):
+def run_cmd(command: list[str], output_file: Path, gpu:str):
     """运行单个实验并将输出重定向到文件"""
     try:
         # 输出文件路径处理
@@ -23,6 +24,7 @@ def run_cmd(command: list[str], output_file: Path):
                 command,
                 stdout=f,
                 stderr=f,
+                env={**os.environ, "CUDA_VISIBLE_DEVICES": gpu},
             )
             process.wait()  # 等待进程完成
 
@@ -39,7 +41,7 @@ def run_cmd(command: list[str], output_file: Path):
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
         
-def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=True):
+def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=True, skip_exist:bool=True):
     running:dict[int, tuple[Thread, ExpEnv]] = {}
     
     fails = []
@@ -58,21 +60,30 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=Tru
                 on_finish(running.pop(i))
                 return i
         return None
-        
+    
+    gpu_allocs = [env.model.tags.get("gpus_alloc", 1) for env in envs]
+    scheduled_envs = list(zip(envs, gpu_allocs))
+    scheduled_envs.sort(key=lambda x: x[1])
+    assert scheduled_envs, "No experiments to run."
+    assert scheduled_envs[-1][1] <= len(devices), "Not enough devices for the largest GPU allocation."
+    
     for env in envs:
-        if env.get_output_path().exists():
+        if skip_exist and env.get_output_path().exists():
             print(f"Skipping {env}.")
             continue
-        d = None
-        while d is None:
+        gpus = []
+        gpus_alloc = env.model.tags.get("gpus_alloc", 1)
+        while len(gpus) < gpus_alloc:
             time.sleep(3)
             d = alloc_device()
+            if d is not None:
+                gpus.append(d)
         envpath = env.get_output_path("env.json")
         env.dump(envpath)
-        cmd = cmd_maker(envpath, d)
+        cmd = cmd_maker(envpath)
         logdir = env.get_output_dir()
         log_file = logdir / f"exp_{get_timestamp()}.log"
-        p = Thread(target=run_cmd, args=(cmd, log_file))
+        p = Thread(target=run_cmd, args=(cmd, log_file, ",".join(map(str, gpus))))
         p.start()
         running[d]=(p,env)
     for v in running.values():
