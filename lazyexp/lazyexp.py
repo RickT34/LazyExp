@@ -5,90 +5,151 @@ from pathlib import Path
 from .mail import send_default
 from .lazyenv import ExpEnv
 import os
+from typing import Callable
 
-
-def run_cmd(command: list[str], output_file: Path, gpu:str):
-    """运行单个实验并将输出重定向到文件"""
-    try:
-        # 输出文件路径处理
-        if not output_file.parent.exists():
-            output_file.parent.mkdir(parents=True)
-
-        # 打印开始信息
-        print(f"    开始实验: {output_file}")
-        start_time = time.time()
-
-        # 执行命令并捕获输出
-        with open(output_file, "w") as f:
-            process = subprocess.Popen(
-                command,
-                stdout=f,
-                stderr=f,
-                env={**os.environ, "CUDA_VISIBLE_DEVICES": gpu},
-            )
-            process.wait()  # 等待进程完成
-
-            # 计算运行时间
-            duration = time.time() - start_time
-            msg = f"    实验完成: 耗时 {duration:.2f} 秒. 状态码: {process.returncode}"
-            f.write(f"\n\n=== {msg} ===\n")
-            f.write(f"实验命令: {' '.join(command)}\n")
-            return process.returncode
-    except Exception as e:
-        print(f"实验错误: {command} : {e}")
-        return 1
 
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
-        
-def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=True, skip_exist:bool=True):
-    running:dict[int, tuple[Thread, ExpEnv]] = {}
-    
-    fails = []
-    def on_finish(pe):
-        p, env = pe
-        if not env.get_output_path().exists():
-            print(f"实验 {env} 失败，没有生成输出文件。")
-            fails.append(env)
-        del p
-            
-    def alloc_device():
-        for i in devices:
-            if i not in running:
-                return i
-            elif not running[i][0].is_alive():
-                on_finish(running.pop(i))
-                return i
-        return None
-    
-    gpu_allocs = [env.model.tags.get("gpus_alloc", 1) for env in envs]
-    scheduled_envs = list(zip(envs, gpu_allocs))
-    scheduled_envs.sort(key=lambda x: x[1])
-    assert scheduled_envs, "No experiments to run."
-    assert scheduled_envs[-1][1] <= len(devices), "Not enough devices for the largest GPU allocation."
-    
+
+
+class Task:
+    def __init__(self, need: int):
+        self.need = need
+        self.running = False
+        self.allocated = []
+
+    def start(self, resources: list[int]):
+        assert not self.running
+        assert len(resources) >= self.need
+        self.running = True
+        self.allocated = resources.copy()
+
+    def check_finish(self) -> bool:
+        raise NotImplementedError()
+
+    def close(self):
+        self.running = False
+
+
+class GPUTask(Task):
+    def __init__(self, need: int, cmd: list[str], output_file: Path):
+        super().__init__(need)
+        self.cmd = cmd
+        self.output_file = output_file
+        self.thread: Thread | None = None
+        self.returncode: int | None = None
+
+    def start(self, resources: list[int]):
+        super().start(resources)
+        gpu_str = ",".join(map(str, self.allocated))
+
+        def target():
+            try:
+                # 输出文件路径处理
+                if not self.output_file.parent.exists():
+                    self.output_file.parent.mkdir(parents=True)
+                # 打印开始信息
+                print(f"    开始实验: {self.output_file}")
+                start_time = time.time()
+
+                # 执行命令并捕获输出
+                with open(self.output_file, "w") as f:
+                    process = subprocess.Popen(
+                        self.cmd,
+                        stdout=f,
+                        stderr=f,
+                        env={**os.environ, "CUDA_VISIBLE_DEVICES": gpu_str},
+                    )
+                    process.wait()  # 等待进程完成
+
+                    # 计算运行时间
+                    duration = time.time() - start_time
+                    msg = f"    实验完成: 耗时 {duration:.2f} 秒. 状态码: {process.returncode}"
+                    self.returncode = process.returncode
+                    print(msg)
+                    f.write(f"\n\n=== {msg} ===\n")
+                    f.write(f"实验命令: {' '.join(self.cmd)}\n")
+            except Exception as e:
+                print(f"实验错误: {self.cmd} : {e}")
+
+        self.thread = Thread(target=target)
+        self.thread.start()
+
+    def check_finish(self):
+        assert self.running
+        assert self.thread is not None
+        return not self.thread.is_alive()
+
+    def close(self):
+        super().close()
+        del self.thread
+        self.thread = None
+
+
+class Scheduler:
+    def __init__(self, resources: list[int], tasks: list[Task]):
+        self.resources = resources.copy()
+        self.tasks = tasks.copy()
+        self.running_tasks = []
+        self.tasks.sort(key=lambda x: x.need, reverse=True)
+
+    def _check_runnings(self):
+        finished = []
+        for t in self.running_tasks:
+            if t.check_finish():
+                t.close()
+                finished.append(t)
+        for t in finished:
+            self.running_tasks.remove(t)
+            self.resources.extend(t.allocated)
+
+    def do_schedule(self):
+        self._check_runnings()
+        while self.resources and self.tasks:
+            for t in self.tasks:
+                if t.need <= len(self.resources):
+                    alloc = self.resources[: t.need]
+                    self.resources = self.resources[t.need :]
+                    print(f"Scheduler: allocated {alloc}")
+                    t.start(alloc)
+                    self.running_tasks.append(t)
+                    self.tasks.remove(t)
+                    break
+            else:
+                break
+
+    def run(self):
+        while self.tasks or self.running_tasks:
+            self.do_schedule()
+            time.sleep(1)
+
+
+def run_exps(
+    envs: list[ExpEnv],
+    devices: list[int],
+    cmd_maker,
+    mailsend: bool = True,
+    skip_exist: bool = True,
+):
+
+    tasks = []
     for env in envs:
         if skip_exist and env.get_output_path().exists():
             print(f"Skipping {env}.")
             continue
-        gpus = []
-        gpus_alloc = env.model.tags.get("gpus_alloc", 1)
-        while len(gpus) < gpus_alloc:
-            time.sleep(3)
-            d = alloc_device()
-            if d is not None:
-                gpus.append(d)
         envpath = env.get_output_path("env.json")
         env.dump(envpath)
-        cmd = cmd_maker(envpath)
-        logdir = env.get_output_dir()
-        log_file = logdir / f"exp_{get_timestamp()}.log"
-        p = Thread(target=run_cmd, args=(cmd, log_file, ",".join(map(str, gpus))))
-        p.start()
-        running[d]=(p,env)
-    for v in running.values():
-        v[0].join()
-        on_finish(v)
+        task = GPUTask(
+            need=env.model.tags.get("gpus_alloc", 1),
+            cmd=cmd_maker(env.get_output_path("env.json")),
+            output_file=env.get_output_path(f"exp_{get_timestamp()}.log"),
+        )
+        tasks.append(task)
+    scheduler = Scheduler(resources=devices, tasks=tasks)
+
+    scheduler.run()
+
+    fails = [e for e in envs if not e.get_output_path().exists()]
     try:
         summery = f"Exp Done: \n{'\n'.join([str(e) for e in envs])}\n\nFails: \n{'\n'.join([str(e) for e in fails])}"
         print(summery)
@@ -96,3 +157,9 @@ def run_exps(envs: list[ExpEnv], devices:list[int], cmd_maker, mailsend:bool=Tru
             send_default("ICT-v2", summery)
     except Exception as e:
         print("Failed to send email:", e)
+
+if __name__ == "__main__":
+    # test code
+    tasks = [Task(need=2), Task(need=1), Task(need=3)]
+    scheduler = Scheduler(resources=[0, 1, 2, 3, 4], tasks=tasks)
+    scheduler.run()
