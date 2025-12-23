@@ -3,9 +3,9 @@ import time
 from threading import Thread
 from pathlib import Path
 from .mail import send_default
-from .lazyenv import ExpEnv, dumpEnvs, genEnvs
+from .lazyenv import ExpEnv, dumpEnvs
 import os
-from typing import Callable
+import uuid
 
 
 DIR_EXP_HISTORY = Path('exp_history')
@@ -51,7 +51,8 @@ class GPUTask(Task):
                 if not self.output_file.parent.exists():
                     self.output_file.parent.mkdir(parents=True)
                 # 打印开始信息
-                print(f"    开始实验: {self.output_file}")
+                id = uuid.uuid4().hex[:4]
+                print(f"    Running [{id}]: {self.output_file}")
                 start_time = time.time()
 
                 # 执行命令并捕获输出
@@ -66,13 +67,13 @@ class GPUTask(Task):
 
                     # 计算运行时间
                     duration = time.time() - start_time
-                    msg = f"    实验完成: 耗时 {duration:.2f} 秒. 状态码: {process.returncode}"
+                    msg = f"    Finished [{id}]: Duration {duration:.2f} s. Code: {process.returncode}"
                     self.returncode = process.returncode
                     print(msg)
                     f.write(f"\n\n=== {msg} ===\n")
-                    f.write(f"实验命令: {' '.join(self.cmd)}\n")
+                    f.write(f"Experiment command: {' '.join(self.cmd)}\n")
             except Exception as e:
-                print(f"实验错误: {self.cmd} : {e}")
+                print(f"    !Experiment error: {self.cmd} : {e}")
 
         self.thread = Thread(target=target)
         self.thread.start()
@@ -128,17 +129,18 @@ class Scheduler:
 
 def run_exps(
     envs: list[ExpEnv],
-    devices: list[int],
     cmd_maker,
     name:str|None = None,
     mailsend: bool = True,
     skip_exist: bool = True,
 ):
-    assert envs and devices
+    assert envs, "No envs to run."
+    devices = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
+    assert devices, "No CUDA_VISIBLE_DEVICES set."
     if name is None:
         labels = {e.label for e in envs}
         if len(labels) == 1:
-            name = 
+            name = labels.pop()
     if name is not None:
         dumpEnvs(envs, name, DIR_EXP_HISTORY)
     else:
