@@ -188,3 +188,9 @@ def loadEnvs(name:str, dir: Path) -> list[ExpEnv]:
 
 def envCopy(env, cls):
     return cls(**dataclasses.asdict(env))
+
+def genEnvs(models:list[ModelEnv], datasets:list[DatasetEnv], algos:list[AlgoEnv], label:str, tags:dict={}):
+    envs = []
+    for model, dataset, algo in itertools.product(models, datasets, algos):
+        envs.append(ExpEnv(model=model, dataset=dataset, algo=algo, label=label, tags=tags))
+    return envs

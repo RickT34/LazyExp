@@ -3,10 +3,12 @@ import time
 from threading import Thread
 from pathlib import Path
 from .mail import send_default
-from .lazyenv import ExpEnv
+from .lazyenv import ExpEnv, dumpEnvs, genEnvs
 import os
 from typing import Callable
 
+
+DIR_EXP_HISTORY = Path('exp_history')
 
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
@@ -128,10 +130,19 @@ def run_exps(
     envs: list[ExpEnv],
     devices: list[int],
     cmd_maker,
+    name:str|None = None,
     mailsend: bool = True,
     skip_exist: bool = True,
 ):
-
+    assert envs and devices
+    if name is None:
+        labels = {e.label for e in envs}
+        if len(labels) == 1:
+            name = 
+    if name is not None:
+        dumpEnvs(envs, name, DIR_EXP_HISTORY)
+    else:
+        print("Warning: Not save envs because of inconsistent labels.")
     tasks = []
     for env in envs:
         if skip_exist and env.get_output_path().exists():
