@@ -26,6 +26,10 @@ class SchedulerUI:
             Layout(name="left", ratio=2),
             Layout(name="right", ratio=1),
         )
+        layout["right"].split_column(
+            Layout(name="resources", size=4),
+            Layout(name="failed", ratio=1),
+        )
         self.layout = layout
         self.title = title
         self.scheduler = s
@@ -34,9 +38,9 @@ class SchedulerUI:
         
     def generate_progress_table(self):
         table = Table(title="Tasks Running", expand=True)
-        table.add_column("Name", justify="left")
-        table.add_column("Resource", style="magenta")
-        table.add_column("Time", justify="center")
+        table.add_column("Name", justify="left", ratio=1)
+        table.add_column("Resource", style="magenta", width=20)
+        table.add_column("Time", justify="center", width=12)
 
         if self.scheduler.finished():
             for p in self.scheduler.succeeded_tasks:
@@ -89,10 +93,8 @@ class SchedulerUI:
 
     def update(self):
         self.layout["left"].update(self.generate_progress_table())
-        self.layout["right"].split_column(
-            Layout(self.generate_resource_panel()),
-            Layout(self.generate_failed_panel()),
-        )
+        self.layout["right"]["resources"].update(self.generate_resource_panel())
+        self.layout["right"]["failed"].update(self.generate_failed_panel())
         self.layout["footer"].update(self.generate_overall_progress())
 
     def run(self):
@@ -115,15 +117,3 @@ class SchedulerUI:
             self.update()
 
         
-
-if __name__ == "__main__":
-    # test code
-    tasks = [Task(need=2), Task(need=1), Task(need=3)]
-    scheduler = Scheduler(resources=[0, 1, 2, 3, 4], tasks=tasks)
-    ui = SchedulerUI(scheduler)
-    ui.run()
-    
-    tasks = [Task(need=2), Task(need=2), Task(need=2)]
-    scheduler = Scheduler(resources=[0, 1, 2, 3, 4], tasks=tasks)
-    ui = SchedulerUI(scheduler)
-    ui.run()
