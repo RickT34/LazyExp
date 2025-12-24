@@ -114,7 +114,7 @@ class ExpEnv:
 
 
     def get_name(self):
-        return f"Exp_{self.model.name}_{self.dataset.name}_{self.algo.name}_{self.label}"
+        return f"{self.model.name}_{self.dataset.name}_{self.algo.name}_{self.label}"
 
     def get_output_dir(self):
         outputdir = (

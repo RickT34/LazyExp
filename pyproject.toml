@@ -11,6 +11,7 @@ requires-python = ">=3.7"
 
 
 dependencies = [
+    "rich>=13.0.0",
 ]
 
 # 自动发现包 (通常不需要改，除非你的目录结构很特殊)

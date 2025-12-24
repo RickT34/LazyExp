@@ -6,40 +6,23 @@ from .mail import send_default
 from .lazyenv import ExpEnv, dumpEnvs
 import os
 import uuid
+from .scheduler import Scheduler, Task
+from .expui import SchedulerUI
 
 
-DIR_EXP_HISTORY = Path('exp_history')
+DIR_EXP_HISTORY = Path("exp_history")
+
 
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
 
-class Task:
-    def __init__(self, need: int):
-        self.need = need
-        self.running = False
-        self.allocated = []
-
-    def start(self, resources: list[int]):
-        assert not self.running
-        assert len(resources) >= self.need
-        self.running = True
-        self.allocated = resources.copy()
-
-    def check_finish(self) -> bool:
-        raise NotImplementedError()
-
-    def close(self):
-        self.running = False
-
-
 class GPUTask(Task):
-    def __init__(self, need: int, cmd: list[str], output_file: Path):
-        super().__init__(need)
+    def __init__(self, need: int, name: str, cmd: list[str], output_file: Path):
+        super().__init__(need, name)
         self.cmd = cmd
         self.output_file = output_file
         self.thread: Thread | None = None
-        self.returncode: int | None = None
 
     def start(self, resources: list[int]):
         super().start(resources)
@@ -89,50 +72,13 @@ class GPUTask(Task):
         self.thread = None
 
 
-class Scheduler:
-    def __init__(self, resources: list[int], tasks: list[Task]):
-        self.resources = resources.copy()
-        self.tasks = tasks.copy()
-        self.running_tasks = []
-        self.tasks.sort(key=lambda x: x.need, reverse=True)
-
-    def _check_runnings(self):
-        finished = []
-        for t in self.running_tasks:
-            if t.check_finish():
-                t.close()
-                finished.append(t)
-        for t in finished:
-            self.running_tasks.remove(t)
-            self.resources.extend(t.allocated)
-
-    def do_schedule(self):
-        self._check_runnings()
-        while self.resources and self.tasks:
-            for t in self.tasks:
-                if t.need <= len(self.resources):
-                    alloc = self.resources[: t.need]
-                    self.resources = self.resources[t.need :]
-                    print(f"Scheduler: allocated {alloc}")
-                    t.start(alloc)
-                    self.running_tasks.append(t)
-                    self.tasks.remove(t)
-                    break
-            else:
-                break
-
-    def run(self):
-        while self.tasks or self.running_tasks:
-            self.do_schedule()
-            time.sleep(1)
-
-
 def run_exps(
     envs: list[ExpEnv],
     cmd_maker,
-    name:str|None = None,
-    mailsend: bool = True,
+    name: str | None = None,
+    send_mail: bool = True,
     skip_exist: bool = True,
+    ui: bool = True,
 ):
     assert envs, "No envs to run."
     devices = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
@@ -155,24 +101,30 @@ def run_exps(
         task = GPUTask(
             need=env.model.tags.get("gpus_alloc", 1),
             cmd=cmd_maker(env.get_output_path("env.json")),
+            name=env.get_name(),
             output_file=env.get_output_path(f"exp_{get_timestamp()}.log"),
         )
         tasks.append(task)
     scheduler = Scheduler(resources=devices, tasks=tasks)
 
-    scheduler.run()
+    if ui:
+        try:
+            sui = SchedulerUI(scheduler, title=name)
+            sui.run()
+        except Exception as e:
+            print(f"Scheduler UI error: {e}, fallback to non-UI mode.")
+            scheduler.run()
+    else:
+        scheduler.run()
 
-    fails = [e for e in envs if not e.get_output_path().exists()]
+    fails = [t.name for t in scheduler.failed_tasks]
     try:
-        summery = f"Exp Done: \n{'\n'.join([str(e) for e in envs])}\n\nFails: \n{'\n'.join([str(e) for e in fails])}"
+        if fails:
+            summery = f"Exp Fails: \n{'\n'.join([str(e) for e in fails])}"
+        else:
+            summery = "All Experiments Succeeded."
         print(summery)
-        if mailsend:
+        if send_mail:
             send_default("ICT-v2", summery)
     except Exception as e:
         print("Failed to send email:", e)
-
-if __name__ == "__main__":
-    # test code
-    tasks = [Task(need=2), Task(need=1), Task(need=3)]
-    scheduler = Scheduler(resources=[0, 1, 2, 3, 4], tasks=tasks)
-    scheduler.run()
