@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazyexp"
-version = "0.1"
+version = "0.2"
 description = "Lazy Experiment"
 authors = [{ name = "RickT", email = "227428973@qq.com" }]
 requires-python = ">=3.12"

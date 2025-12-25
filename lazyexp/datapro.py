@@ -42,14 +42,13 @@ class ExpAxis(enum.Enum):
     AlgoAxis = (2,)
     LabelAxis = (3,)
 
-
-def axis2cldname(axis: ExpAxis):
-    return {
-        ExpAxis.ModelAxis: "model",
-        ExpAxis.DatasetAxis: "dataset",
-        ExpAxis.AlgoAxis: "algo",
-        ExpAxis.LabelAxis: "label",
-    }[axis]
+    def get_attr_name(self):
+        return {
+            ExpAxis.ModelAxis: "model",
+            ExpAxis.DatasetAxis: "dataset",
+            ExpAxis.AlgoAxis: "algo",
+            ExpAxis.LabelAxis: "label",
+        }[self]
 
 
 def envs_decompose(envs: list[ExpEnv]):
@@ -71,6 +70,7 @@ DEFAULT_PLOT_ARGS = {"linewidth": 2, "markersize": 5, "marker": "o"}
 
 PREDEF_COLORS = ["#F47F72", "#89BF99", "#7FB2D5", "#F7B76D", "#857CDB"]
 
+
 def get_random_color():
     if PREDEF_COLORS:
         return PREDEF_COLORS.pop(0)
@@ -79,33 +79,6 @@ def get_random_color():
     g = random.randint(LB, UB)
     b = random.randint(LB, UB)
     return f"#{int(r):02x}{int(g):02x}{int(b):02x}"
-
-
-colors_mem = {}
-
-
-def autoplot(ax: axes.Axes, data, plot_args: dict = {}):
-    for k, v in DEFAULT_PLOT_ARGS.items():
-        plot_args.setdefault(k, v)
-    if isinstance(data, tuple) and len(data) == 2:
-        x, y = data
-    else:
-        x = np.arange(len(data))
-        y = data
-
-    if isinstance(y, dict):
-        for label, yv in y.items():
-            pa = plot_args.copy()
-            x = np.arange(len(yv))
-            if "color" not in pa:
-                pa["color"] = colors_mem.get(label, get_random_color())
-                colors_mem[label] = pa["color"]
-            ax.plot(x, yv, label=label, **pa)
-    else:
-        ax.plot(x, y, **plot_args)
-    if len(x) < 50:
-        ax.set_xticks(x)
-    ax.grid(True)
 
 
 def explot(
@@ -128,14 +101,39 @@ def explot(
     fig, ax = plt.subplots(
         len(YY), len(XX), figsize=(5 * len(XX), 4 * len(YY)), squeeze=False
     )
+    colors_mem = {}
+
+    def autoplot(ax: axes.Axes, data, plot_args: dict = {}):
+        for k, v in DEFAULT_PLOT_ARGS.items():
+            plot_args.setdefault(k, v)
+        if isinstance(data, tuple) and len(data) == 2:
+            x, y = data
+        else:
+            x = np.arange(len(data))
+            y = data
+
+        if isinstance(y, dict):
+            for label, yv in y.items():
+                pa = plot_args.copy()
+                x = np.arange(len(yv))
+                if "color" not in pa:
+                    pa["color"] = colors_mem.get(label, get_random_color())
+                    colors_mem[label] = pa["color"]
+                ax.plot(x, yv, label=label, **pa)
+        else:
+            ax.plot(x, y, **plot_args)
+        if len(x) < 50:
+            ax.set_xticks(x)
+        ax.grid(True)
+
     if translator is None:
         translator = lambda x: x
     for i, y in enumerate(YY):
         for j, x in enumerate(XX):
             sub_envs = list(
                 filter(
-                    lambda e: (getattr(e, axis2cldname(axises[0])) == x)
-                    and (getattr(e, axis2cldname(axises[1])) == y),
+                    lambda e: (getattr(e, axises[0].get_attr_name()) == x)
+                    and (getattr(e, axises[1].get_attr_name()) == y),
                     envs,
                 )
             )
