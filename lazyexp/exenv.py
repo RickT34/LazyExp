@@ -108,9 +108,9 @@ class ExpEnv:
             if not isinstance(v, c):
                 setattr(self, k, c(**v))
         if not self.dataset.check_exists():
-            raise FileNotFoundError(f"Dataset path {self.dataset.path} not found")
+            print(f"Warning: Dataset path {self.dataset.path} not found")
         if not self.model.check_exists():
-            raise FileNotFoundError(f"Model path {self.model.path} not found")
+            print(f"Warning: Model path {self.model.path} not found")
 
 
     def get_name(self):

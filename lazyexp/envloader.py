@@ -1,4 +1,4 @@
-from .lazyenv import *
+from .exenv import *
 from datasets import Dataset, load_from_disk
 
 def load_dataset(dataset: DatasetEnv)->Dataset:
@@ -35,4 +35,4 @@ def load_model(
     model_args.update(model.tags.get("model_args", {}))
     model_args.update(model_args or {})
     mo = AutoModelForCausalLM.from_pretrained(model.path, **model_args)
-    return tokenizer, mo
+    return mo, tokenizer

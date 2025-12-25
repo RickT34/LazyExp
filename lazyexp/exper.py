@@ -3,11 +3,12 @@ import time
 from threading import Thread
 from pathlib import Path
 from .mail import send_default
-from .lazyenv import ExpEnv, dumpEnvs
+from .exenv import ExpEnv, dumpEnvs
 import os
 import uuid
 from .scheduler import Scheduler, Task
-from .expui import SchedulerUI
+from .scheduler_tui import SchedulerUI
+from typing import Callable
 
 
 DIR_EXP_HISTORY = Path("exp_history")
@@ -74,7 +75,7 @@ class GPUTask(Task):
 
 def run_exps(
     envs: list[ExpEnv],
-    cmd_maker,
+    cmd_maker: Callable[[Path], list[str]],
     name: str | None = None,
     send_mail: bool = True,
     skip_exist: bool = True,

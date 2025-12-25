@@ -7,11 +7,16 @@ name = "lazyexp"
 version = "0.1"
 description = "Lazy Experiment"
 authors = [{ name = "RickT", email = "227428973@qq.com" }]
-requires-python = ">=3.7"
+requires-python = ">=3.12"
 
 
 dependencies = [
-    "rich>=13.0.0",
+    "rich",
+    "matplotlib",
+    "tqdm",
+    "transformers",
+    "datasets",
+    "torch",
 ]
 
 # 自动发现包 (通常不需要改，除非你的目录结构很特殊)
