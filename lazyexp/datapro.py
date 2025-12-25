@@ -112,6 +112,11 @@ def explot(
             x = np.arange(len(data))
             y = data
 
+        if isinstance(x[0], str):
+            ax.set_xticklabels(x, rotation=45, ha="right")
+            x = np.arange(len(x))
+        if len(x) < 50:
+            ax.set_xticks(x)
         if isinstance(y, dict):
             for label, yv in y.items():
                 pa = plot_args.copy()
@@ -122,8 +127,6 @@ def explot(
                 ax.plot(x, yv, label=label, **pa)
         else:
             ax.plot(x, y, **plot_args)
-        if len(x) < 50:
-            ax.set_xticks(x)
         ax.grid(True)
 
     if translator is None:

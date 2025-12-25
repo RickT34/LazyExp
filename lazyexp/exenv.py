@@ -5,6 +5,7 @@ import json
 import itertools
 import math
 import re
+from tqdm import tqdm
 
 
 @dataclasses.dataclass
@@ -194,3 +195,22 @@ def genEnvs(models:list[ModelEnv], datasets:list[DatasetEnv], algos:list[AlgoEnv
     for model, dataset, algo in itertools.product(models, datasets, algos):
         envs.append(ExpEnv(model=model, dataset=dataset, algo=algo, label=label, tags=tags))
     return envs
+
+def dl_from_remote(envs: list[ExpEnv], ssh_host:str, remote_base_path:str, filename:str='result.json'):
+    reqs = []
+    for env in tqdm(envs):
+        local_path = env.get_output_path(filename)
+        if local_path.exists():
+            continue
+        reqs.append(local_path.as_posix())
+    # pack files on the remote side
+    pack_cmd = f'ssh {ssh_host} "tar -czf /tmp/lazyexp_dl.tar.gz -C {remote_base_path} {" ".join(reqs)}"'
+    print(f"Packing files on remote side...")
+    os.system(pack_cmd)
+    # download the packed file
+    dl_cmd = f'rsync -ravzP {ssh_host}:/tmp/lazyexp_dl.tar.gz /tmp/lazyexp_dl.tar.gz'
+    print(dl_cmd)
+    os.system(dl_cmd)
+    # unpack files locally
+    unpack_cmd = f'tar -xzf /tmp/lazyexp_dl.tar.gz -C {Path.cwd().as_posix()}'
+    os.system(unpack_cmd)
