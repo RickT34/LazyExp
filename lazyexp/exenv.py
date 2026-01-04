@@ -169,22 +169,6 @@ class ExpEnv:
         return hash(repr(self))
 
 
-def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path):
-    dir.mkdir(parents=True, exist_ok=True)
-    path = dir / f"{name}.json"
-    #assert not path.exists(), f"exp {name} already exists"
-    l = []
-    for e in envs:
-        l.append(dataclasses.asdict(e))
-    return json.dump(l, open(path, "w"), indent=4)
-
-def loadEnvs(name:str, dir: Path) -> list[ExpEnv]:
-    path = dir / f"{name}.json"
-    l = json.load(open(path, "r"))
-    envs = []
-    for d in l:
-        envs.append(ExpEnv(**d))
-    return envs
     
 
 def envCopy(env, cls):
@@ -193,7 +177,7 @@ def envCopy(env, cls):
 def genEnvs(models:list[ModelEnv], datasets:list[DatasetEnv], algos:list[AlgoEnv], label:str, tags:dict={}):
     envs = []
     for model, dataset, algo in itertools.product(models, datasets, algos):
-        envs.append(ExpEnv(model=model, dataset=dataset, algo=algo, label=label, tags=tags))
+        envs.append(ExpEnv(model=model, dataset=dataset, algo=algo, label=label, tags=tags.copy()))
     return envs
 
 def dl_from_remote(envs: list[ExpEnv], ssh_host:str, remote_base_path:str, filename:str='result.json'):

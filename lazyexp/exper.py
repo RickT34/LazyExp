@@ -3,16 +3,34 @@ import time
 from threading import Thread
 from pathlib import Path
 from .mail import send_default
-from .exenv import ExpEnv, dumpEnvs
+from .exenv import ExpEnv
 import os
 import uuid
 from .scheduler import Scheduler, Task
 from .scheduler_tui import SchedulerUI
 from typing import Callable
+import dataclasses
+import json
 
 
 DIR_EXP_HISTORY = Path("exp_history")
 
+def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path=DIR_EXP_HISTORY):
+    dir.mkdir(parents=True, exist_ok=True)
+    path = dir / f"{name}.json"
+    #assert not path.exists(), f"exp {name} already exists"
+    l = []
+    for e in envs:
+        l.append(dataclasses.asdict(e))
+    return json.dump(l, open(path, "w"), indent=4)
+
+def loadEnvs(name:str, dir: Path=DIR_EXP_HISTORY) -> list[ExpEnv]:
+    path = dir / f"{name}.json"
+    l = json.load(open(path, "r"))
+    envs = []
+    for d in l:
+        envs.append(ExpEnv(**d))
+    return envs
 
 def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
