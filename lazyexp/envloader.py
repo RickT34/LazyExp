@@ -1,5 +1,6 @@
 from .exenv import *
 from datasets import Dataset, load_from_disk
+from .utils import call_function_from_file
 
 def load_dataset(dataset: DatasetEnv)->Dataset:
     from datasets import load_dataset as hf_load_dataset
@@ -14,6 +15,8 @@ def load_dataset(dataset: DatasetEnv)->Dataset:
         with open(dataset.path, "r") as f:
             data = json.load(f)
         ds = Dataset.from_list(data)
+    elif dataset.filetype == "py":
+        ds = call_function_from_file(dataset.path, "load_dataset", dataset)
     else:
         raise NotImplementedError(f"Unsupported dataset filetype: {dataset.filetype}")
     if not isinstance(ds, Dataset):
@@ -24,15 +27,24 @@ def load_dataset(dataset: DatasetEnv)->Dataset:
 def load_model(
     model: ModelEnv, tokenizer_args: dict | None = None, model_args: dict | None = None
 ):
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    return load_model_only(model, model_args), load_tokenizer_only(model, tokenizer_args)
+
+def load_tokenizer_only(model: ModelEnv, tokenizer_args: dict | None = None):
+    from transformers import AutoTokenizer
 
     tokenizer_args = dict(padding_side="left", trust_remote_code=True)
     tokenizer_args.update(model.tags.get("tokenizer_args", {}))
     tokenizer_args.update(tokenizer_args or {})
-    print("Loading model:", model.path)
+    print("Loading tokenizer:", model.path)
     tokenizer = AutoTokenizer.from_pretrained(model.path, **tokenizer_args)
+    return tokenizer
+
+def load_model_only(model: ModelEnv, model_args: dict | None = None):
+    from transformers import AutoModelForCausalLM
+
     model_args = dict(device_map="auto", trust_remote_code=True)
     model_args.update(model.tags.get("model_args", {}))
     model_args.update(model_args or {})
+    print("Loading model:", model.path)
     mo = AutoModelForCausalLM.from_pretrained(model.path, **model_args)
-    return mo, tokenizer
+    return mo
