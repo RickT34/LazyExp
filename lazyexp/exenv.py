@@ -112,33 +112,22 @@ class ExpEnv:
             print(f"Warning: Dataset path {self.dataset.path} not found")
         if not self.model.check_exists():
             print(f"Warning: Model path {self.model.path} not found")
-
-
-    def get_name(self):
-        return f"{self.model.name}_{self.dataset.name}_{self.algo.name}_{self.label}"
-
-    def get_output_dir(self):
-        outputdir = (
+        self.output_dir = (
             Path(self.outputs_dir)
             / self.model.name
             / self.dataset.name
             / self.label
             / self.algo.name
         )
-        outputdir.mkdir(parents=True, exist_ok=True)
-        return outputdir
-    
-    def get_output_dir_legency(self):
-        outputdir = (
-            Path(self.outputs_dir)
-            / self.model.name
-            / self.dataset.get_ds_name_legency(self.dataset.path)
-            / self.label
-            / self.algo.name
-        )
-        outputdir.mkdir(parents=True, exist_ok=True)
-        return outputdir
 
+
+    def get_name(self):
+        return f"{self.model.name}_{self.dataset.name}_{self.algo.name}_{self.label}"
+
+    def get_output_dir(self):
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        return self.output_dir
+    
     def get_output_path(self, filename: str = "result.json"):
         outputdir = self.get_output_dir()
         output_file = outputdir / filename
