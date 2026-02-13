@@ -37,7 +37,7 @@ def get_timestamp():
 
 
 class GPUTask(Task):
-    def __init__(self, need: int, name: str, cmd: list[str], output_file: Path):
+    def __init__(self, need: int, name: str, cmd: list[str], output_file: str):
         super().__init__(need, name)
         self.cmd = cmd
         self.output_file = output_file
@@ -49,9 +49,6 @@ class GPUTask(Task):
 
         def target():
             try:
-                # 输出文件路径处理
-                if not self.output_file.parent.exists():
-                    self.output_file.parent.mkdir(parents=True)
                 # 打印开始信息
                 id = uuid.uuid4().hex[:4]
                 print(f"    Running [{id}]: {self.output_file}")
@@ -93,7 +90,7 @@ class GPUTask(Task):
 
 def run_exps(
     envs: list[ExpEnv],
-    cmd_maker: Callable[[Path], list[str]],
+    cmd_maker: Callable[[str], list[str]],
     name: str | None = None,
     send_mail: bool = True,
     skip_exist: bool = True,
@@ -112,7 +109,7 @@ def run_exps(
         print("Warning: Not save envs because of inconsistent labels.")
     tasks = []
     for env in envs:
-        if skip_exist and env.get_output_path().exists():
+        if skip_exist and os.path.exists(env.get_output_path()):
             print(f"Skipping {env}.")
             continue
         envpath = env.get_output_path("env.json")
