@@ -36,6 +36,7 @@ class DatasetEnv:
     path: str
     tags: dict = dataclasses.field(default_factory=dict)
     filetype: str = "json"
+    name:str = ""
 
     @staticmethod
     def get_ds_name(data_json: str):
@@ -52,7 +53,8 @@ class DatasetEnv:
         return os.path.exists(self.path)
 
     def __post_init__(self):
-        self.name = self.get_ds_name(self.path)
+        if self.name == '':
+            self.name = self.get_ds_name(self.path)
             
     @staticmethod
     def ds_split(l:int, m:int, n:int):
@@ -98,6 +100,7 @@ class ExpEnv:
     label: str
     outputs_dir: str = "outputs"
     tags: dict = dataclasses.field(default_factory=dict)
+    output_dir: str = ""
 
     def __post_init__(self):
         for k, c in [
@@ -112,26 +115,25 @@ class ExpEnv:
             print(f"Warning: Dataset path {self.dataset.path} not found")
         if not self.model.check_exists():
             print(f"Warning: Model path {self.model.path} not found")
-        self.output_dir = (
-            Path(self.outputs_dir)
-            / self.model.name
-            / self.dataset.name
-            / self.label
-            / self.algo.name
-        )
+        if self.output_dir == '':
+            self.output_dir = os.path.join(
+                self.outputs_dir, 
+                self.model.name, 
+                self.dataset.name, 
+                self.label, 
+                self.algo.name
+            )
 
 
     def get_name(self):
         return f"{self.model.name}_{self.dataset.name}_{self.algo.name}_{self.label}"
 
     def get_output_dir(self):
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
         return self.output_dir
     
     def get_output_path(self, filename: str = "result.json"):
-        outputdir = self.get_output_dir()
-        output_file = outputdir / filename
-        return output_file
+        return os.path.join(self.get_output_dir(), filename)
     
     def to_json(self):
         return json.dumps(dataclasses.asdict(self))
@@ -173,9 +175,9 @@ def dl_from_remote(envs: list[ExpEnv], ssh_host:str, remote_base_path:str, filen
     reqs = []
     for env in tqdm(envs):
         local_path = env.get_output_path(filename)
-        if local_path.exists():
+        if os.path.exists(local_path):
             continue
-        reqs.append(local_path.as_posix())
+        reqs.append(local_path)
     # pack files on the remote side
     pack_cmd = f'ssh {ssh_host} "tar -czf /tmp/lazyexp_dl.tar.gz -C {remote_base_path} {" ".join(reqs)}"'
     print(f"Packing files on remote side...")
