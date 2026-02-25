@@ -240,3 +240,23 @@ def extable(
             table_data[key_x, key_y, key_z] = data
     df = pd.DataFrame.from_dict(table_data, orient="index")
     return df
+
+def exshow(
+    envs: list[ExpEnv],
+    axises: tuple[ExpAxis, ...],
+    process_fn: Callable,
+):
+    XX, YY, ZZ, envs_splited = _decompose_envs_by_axis(envs, axises)
+    trans_wrapper = lambda x: x.name if hasattr(x, "name") else str(x)
+    selected = []
+    for i in (XX, YY, ZZ):
+        for x in enumerate(i):
+            print(f"{i}: {trans_wrapper(x)}")
+        selected.append(i[int(input(f"Select: "))])
+    env = envs_splited[selected[0], selected[1], selected[2]]
+    for case in process_fn(env):
+        for k, v in case.items():
+            print(f"========== {k} ==========")
+            print(v)
+        input("Press Enter to continue...")
+    
