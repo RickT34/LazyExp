@@ -250,8 +250,8 @@ def exshow(
     trans_wrapper = lambda x: x.name if hasattr(x, "name") else str(x)
     selected = []
     for i in (XX, YY, ZZ):
-        for x in enumerate(i):
-            print(f"{i}: {trans_wrapper(x)}")
+        for j, x in enumerate(i):
+            print(f"{j}: {trans_wrapper(x)}")
         selected.append(i[int(input(f"Select: "))])
     env = envs_splited[selected[0], selected[1], selected[2]]
     for case in process_fn(env):

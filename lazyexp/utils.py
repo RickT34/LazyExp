@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+import os
 
 _module_count = 0
 def call_function_from_file(file_path, function_name, *args, **kwargs):
@@ -19,3 +20,10 @@ def call_function_from_file(file_path, function_name, *args, **kwargs):
     if not hasattr(module, function_name):
         raise ValueError(f"Function {function_name} not found in {file_path}")
     return getattr(module, function_name)(*args, **kwargs)
+
+def rm_empty_dirs(path):
+    for root, dirs, files in os.walk(path, topdown=False):
+        for d in dirs:
+            dir_path = os.path.join(root, d)
+            if not os.listdir(dir_path):
+                os.rmdir(dir_path)

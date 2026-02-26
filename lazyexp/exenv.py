@@ -6,6 +6,7 @@ import itertools
 import math
 import re
 from tqdm import tqdm
+import shutil
 
 
 @dataclasses.dataclass
@@ -189,3 +190,12 @@ def dl_from_remote(envs: list[ExpEnv], ssh_host:str, remote_base_path:str, filen
     # unpack files locally
     unpack_cmd = f'tar -xzf /tmp/lazyexp_dl.tar.gz -C {Path.cwd().as_posix()}'
     os.system(unpack_cmd)
+
+    
+def envMove(src:ExpEnv, dst:ExpEnv):
+    """
+    Move the output dir from src env to dst env
+    """
+    src_output_dir = src.get_output_dir()
+    dst_output_dir = dst.get_output_dir()
+    os.rename(src_output_dir, dst_output_dir)
