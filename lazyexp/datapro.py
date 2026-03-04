@@ -125,16 +125,19 @@ def _decompose_envs_by_axis(
 def explot(
     envs: list[ExpEnv],
     axises: tuple[ExpAxis, ...],
-    process_fn: Callable,
+    process_fn: Callable[[list[ExpEnv]], tuple[str, tuple[list, dict[str, list]]]],
     xlabel: str = "",
     translator: Callable[[str], str] | None = None,
     plot_args: dict = {},
     ax_hook: Callable[[axes.Axes, list[ExpEnv]], None] | None = None,
     colors: list[str] = [],
+    nrows_cols: tuple[int, int] | None = None,
 ):
     XX, YY, ZZ, envs_splited = _decompose_envs_by_axis(envs, axises)
+    if nrows_cols is None:
+        nrows_cols = (len(YY), len(XX))
     fig, ax = plt.subplots(
-        len(YY), len(XX), figsize=(5 * len(XX), 4 * len(YY)), squeeze=False
+        nrows_cols[0], nrows_cols[1], figsize=(5 * nrows_cols[1], 4 * nrows_cols[0]), squeeze=False
     )
     colors_mem = {}
     colors = colors.copy()
@@ -149,32 +152,43 @@ def explot(
         colors_mem[label] = color
         return color
 
-    def autoplot(ax: axes.Axes, data, plot_args: dict = {}):
-        for k, v in DEFAULT_PLOT_ARGS.items():
-            plot_args.setdefault(k, v)
-        if isinstance(data, tuple) and len(data) == 2:
-            x, y = data
-        else:
-            x = np.arange(len(data))
-            y = data
+    def autoplot(ax: axes.Axes, res_data, plot_args: dict = {}):
+        typ, data = res_data
 
-        if isinstance(x[0], str):
-            x2 = np.arange(len(x))
-            ax.set_xticks(x2)
-            ax.set_xticklabels(x, rotation=45, ha="right")
-            x = x2
-        elif len(x) < 50:
-            ax.set_xticks(x)
-        if isinstance(y, dict):
+        if typ == "plot":
+            for k, v in DEFAULT_PLOT_ARGS.items():
+                plot_args.setdefault(k, v)
+            x, y = data
+            if isinstance(x[0], str):
+                x2 = np.arange(len(x))
+                ax.set_xticks(x2)
+                ax.set_xticklabels(x, rotation=45, ha="right")
+                x = x2
+            elif len(x) < 50:
+                ax.set_xticks(x)
             for label, yv in y.items():
                 pa = plot_args.copy()
                 x = np.arange(len(yv))
                 if "color" not in pa:
                     pa["color"] = get_color(label)
-                    colors_mem[label] = pa["color"]
                 ax.plot(x, yv, label=label, **pa)
+        elif typ == "bar":
+            x, y = data
+            width = plot_args.get("width", 0.8) / len(y)
+            for i, (label, yv) in enumerate(y.items()):
+                x_shifted = x + (i - len(y) / 2) * width + width / 2
+                pa = plot_args.copy()
+                if "color" not in pa:
+                    pa["color"] = get_color(label)
+                ax.bar(x_shifted, yv, width=width, label=label, **pa)
+        elif typ == "hist":
+            y = data
+            pa = plot_args.copy()
+            if "color" not in pa:
+                pa["color"] = [get_color(l) for l in y.keys()]
+            ax.hist(x=list(y.values()), label=list(y.keys()), **pa)
         else:
-            ax.plot(x, y, **plot_args)
+            raise ValueError(f"Unsupported plot type: {typ}")
         ax.grid(True)
 
     if translator is None:
@@ -182,20 +196,23 @@ def explot(
     trans_wrapper = lambda x: translator(x.name if hasattr(x, "name") else str(x))
     for (i, y), (j, x), (k, z) in tqdm(itertools.product(enumerate(YY), enumerate(XX), enumerate(ZZ)), total=len(YY)*len(XX)*len(ZZ)):
         sub_envs = envs_splited[x, y, z]
+        _ij = j + i*len(XX)
+        ir, ic = _ij // nrows_cols[1], _ij % nrows_cols[1]
+        axij = ax[ir][ic]
         if len(sub_envs) == 0:
             print(f"Warning: no envs for subplot ({x}, {y}, {z})")
         else:
             data = process_fn(sub_envs)
-            autoplot(ax[i][j], data, plot_args)
+            autoplot(axij, data, plot_args)
         if k == 0:
-            if j == 0:
-                ax[i][j].set_ylabel(trans_wrapper(y), fontsize=14)
-            if i == 0:
-                ax[i][j].set_title(trans_wrapper(x), fontsize=14)
-            if i == len(YY) - 1:
-                ax[i][j].set_xlabel(trans_wrapper(xlabel), fontsize=12)
+            if ic == 0:
+                axij.set_ylabel(trans_wrapper(y), fontsize=14)
+            if ir == 0 or i == 0:
+                axij.set_title(trans_wrapper(x), fontsize=14)
+            if ir == nrows_cols[0] - 1:
+                axij.set_xlabel(trans_wrapper(xlabel), fontsize=12)
         if ax_hook is not None:
-            ax_hook(ax[i][j], sub_envs)
+            ax_hook(axij, sub_envs)
     handles, labels = ax[-1][-1].get_legend_handles_labels()
 
     if handles:
@@ -250,6 +267,9 @@ def exshow(
     trans_wrapper = lambda x: x.name if hasattr(x, "name") else str(x)
     selected = []
     for i in (XX, YY, ZZ):
+        if len(i) == 1:
+            selected.append(i[0])
+            continue
         for j, x in enumerate(i):
             print(f"{j}: {trans_wrapper(x)}")
         selected.append(i[int(input(f"Select: "))])
@@ -259,4 +279,6 @@ def exshow(
             print(f"========== {k} ==========")
             print(v)
         input("Press Enter to continue...")
+        # clear screen
+        os.system('cls' if os.name == 'nt' else 'clear')
     
