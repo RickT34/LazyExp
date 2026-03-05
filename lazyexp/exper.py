@@ -15,16 +15,39 @@ import json
 
 DIR_EXP_HISTORY = Path("exp_history")
 
-def dumpEnvs(envs: list[ExpEnv], name:str, dir: Path=DIR_EXP_HISTORY):
+
+def dumpEnvs(envs: list[ExpEnv], name: str, dir: Path = DIR_EXP_HISTORY):
+    """
+    Save a list of experiment environments to a JSON file.
+
+    Args:
+        envs (list[ExpEnv]): List of ExpEnv objects to be saved.
+        name (str): Name of the experiment run, used as the filename.
+        dir (Path, optional): Directory to save the history. Defaults to DIR_EXP_HISTORY.
+
+    Returns:
+        None
+    """
     dir.mkdir(parents=True, exist_ok=True)
     path = dir / f"{name}.json"
-    #assert not path.exists(), f"exp {name} already exists"
+    # assert not path.exists(), f"exp {name} already exists"
     l = []
     for e in envs:
         l.append(dataclasses.asdict(e))
     return json.dump(l, open(path, "w"), indent=4)
 
-def loadEnvs(name:str, dir: Path=DIR_EXP_HISTORY) -> list[ExpEnv]:
+
+def loadEnvs(name: str, dir: Path = DIR_EXP_HISTORY) -> list[ExpEnv]:
+    """
+    Load a list of experiment environments from a JSON file.
+
+    Args:
+        name (str): Name of the experiment run.
+        dir (Path, optional): Directory where the history is saved. Defaults to DIR_EXP_HISTORY.
+
+    Returns:
+        list[ExpEnv]: List of loaded ExpEnv objects.
+    """
     path = dir / f"{name}.json"
     l = json.load(open(path, "r"))
     envs = []
@@ -32,7 +55,14 @@ def loadEnvs(name:str, dir: Path=DIR_EXP_HISTORY) -> list[ExpEnv]:
         envs.append(ExpEnv(**d))
     return envs
 
+
 def get_timestamp():
+    """
+    Get the current timestamp as a formatted string.
+
+    Returns:
+        str: Current time in 'YYYYMMDD_HHMMSS' format.
+    """
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
 
@@ -96,6 +126,21 @@ def run_exps(
     skip_exist: bool = True,
     ui: bool = True,
 ):
+    """
+    Run experiments from a list of experiment environments.
+
+    It creates and schedules GPU tasks based on the environments, manages execution,
+    saves the experiment configuration, and optionally reports status via UI and email.
+
+    Args:
+        envs (list[ExpEnv]): List of environments representing individual experiments.
+        cmd_maker (Callable[[str], list[str]]): A function that takes an environment config path
+            and returns a command as a list of strings to be executed.
+        name (str | None, optional): The name of the entire experiment run. Defaults to inferred label.
+        send_mail (bool, optional): Whether to send a completion notification email. Defaults to True.
+        skip_exist (bool, optional): Whether to skip environments whose output already exists. Defaults to True.
+        ui (bool, optional): Whether to display a TUI for the scheduler. Defaults to True.
+    """
     assert envs, "No envs to run."
     devices = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
     assert devices, "No CUDA_VISIBLE_DEVICES set."

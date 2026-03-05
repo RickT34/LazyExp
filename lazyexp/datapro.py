@@ -27,6 +27,16 @@ def get_dataset_cached(dataset: DatasetEnv):
 
 
 def process_exps(envs: list[ExpEnv], process_fn: Callable[[ExpEnv], dict]):
+    """
+    Apply a processing function to each `ExpEnv` instance and aggregate attributes.
+
+    Args:
+        envs (list[ExpEnv]): Total collection of local experimentation data variables.
+        process_fn (Callable[[ExpEnv], dict]): Single result aggregation extraction handler resolving an ExpEnv context map.
+
+    Returns:
+        pd.DataFrame or list: Dataframe summarization mapping evaluated dictionaries.
+    """
     results = []
     for env in tqdm(envs):
         results.append(process_fn(env))
@@ -54,6 +64,15 @@ class ExpAxis(enum.Enum):
 
 
 def envs_decompose(envs: list[ExpEnv]):
+    """
+    Break down attributes from complex experiment iterations isolating parameters independently mapping models, datasets, etc.
+
+    Args:
+        envs (list[ExpEnv]): Provided full permutations matching configurations.
+
+    Returns:
+        tuple: Tuples corresponding independently per axis to [Models, Datasets, Algorithms, Labels].
+    """
     attrs = ("model", "dataset", "algo", "label")
     comps = {attr: [] for attr in attrs}
     for env in envs:
@@ -71,6 +90,7 @@ DEFAULT_PLOT_ARGS = {"linewidth": 2, "markersize": 5, "marker": "o"}
 
 _color_state = random.random()
 
+
 def get_random_color():
     """
     生成一个科研风格的随机颜色（Hex格式）。
@@ -79,25 +99,24 @@ def get_random_color():
     global _color_state
     # 黄金分割比，用于在色相环上均匀分布
     golden_ratio = (5**0.5 - 1) / 2
-    
+
     # 更新全局色相状态 (利用列表的可变性模拟静态变量)
     _color_state = (_color_state + golden_ratio) % 1
-    
+
     # 参数调整 (HSV空间):
     # H (Hue): 自动计算
     # S (Saturation): 0.6 (适中，不刺眼)
     # V (Value): 0.95 (明亮，适合白底论文)
     h = _color_state
-    s = 0.6  
-    v = 0.95 
-    
+    s = 0.6
+    v = 0.95
+
     # 转为RGB并生成Hex代码
     r, g, b = colorsys.hsv_to_rgb(h, s, v)
-    return '#{:02x}{:02x}{:02x}'.format(int(r*255), int(g*255), int(b*255))
+    return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
 
-def _decompose_envs_by_axis(
-    envs: list[ExpEnv], axises: tuple[ExpAxis, ...]
-):
+
+def _decompose_envs_by_axis(envs: list[ExpEnv], axises: tuple[ExpAxis, ...]):
     models, datasets, algos, labels = envs_decompose(envs)
     axis_map = {
         ExpAxis.ModelAxis: models,
@@ -119,7 +138,6 @@ def _decompose_envs_by_axis(
         )
         envs_splited[key].append(env)
     return XX, YY, ZZ, envs_splited
-    
 
 
 def explot(
@@ -133,15 +151,38 @@ def explot(
     colors: list[str] = [],
     nrows_cols: tuple[int, int] | None = None,
 ):
+    """
+    Auto plot experiments data into a grid with X Y axis. Optional in-plot Z axis.
+
+    Args:
+        envs (list[ExpEnv]): A list of experiments
+        axises (tuple[ExpAxis, ...]): Axises (X, Y) or (X, Y, Z)
+        process_fn (Callable[[list[ExpEnv]], tuple[str, tuple[list, dict[str, list]]]]): A process function that process envs to plot data. return format: ("plot"|"bar"|"hist", (xticks, {label:ydata, ...}))
+        xlabel (str, optional): xlabel for all subplots. Defaults to "".
+        translator (Callable[[str], str] | None, optional): Overwrite to string elements in plot. Defaults to None.
+        plot_args (dict, optional): Extra plot args. Defaults to {}.
+        ax_hook (Callable[[axes.Axes, list[ExpEnv]], None] | None, optional): axes hook function called after subplot plotted. Defaults to None.
+        colors (list[str], optional): Color set to labels. Defaults to [].
+        nrows_cols (tuple[int, int] | None, optional): (nrow, ncols) for subplots. Defaults to None.
+
+    Raises:
+        ValueError
+
+    Returns:
+        Figure: Plotted figure
+    """
     XX, YY, ZZ, envs_splited = _decompose_envs_by_axis(envs, axises)
     if nrows_cols is None:
         nrows_cols = (len(YY), len(XX))
     fig, ax = plt.subplots(
-        nrows_cols[0], nrows_cols[1], figsize=(5 * nrows_cols[1], 4 * nrows_cols[0]), squeeze=False
+        nrows_cols[0],
+        nrows_cols[1],
+        figsize=(5 * nrows_cols[1], 4 * nrows_cols[0]),
+        squeeze=False,
     )
     colors_mem = {}
     colors = colors.copy()
-    
+
     def get_color(label: str) -> str:
         if label in colors_mem:
             return colors_mem[label]
@@ -194,9 +235,12 @@ def explot(
     if translator is None:
         translator = lambda x: str(x)
     trans_wrapper = lambda x: translator(x.name if hasattr(x, "name") else str(x))
-    for (i, y), (j, x), (k, z) in tqdm(itertools.product(enumerate(YY), enumerate(XX), enumerate(ZZ)), total=len(YY)*len(XX)*len(ZZ)):
+    for (i, y), (j, x), (k, z) in tqdm(
+        itertools.product(enumerate(YY), enumerate(XX), enumerate(ZZ)),
+        total=len(YY) * len(XX) * len(ZZ),
+    ):
         sub_envs = envs_splited[x, y, z]
-        _ij = j + i*len(XX)
+        _ij = j + i * len(XX)
         ir, ic = _ij // nrows_cols[1], _ij % nrows_cols[1]
         axij = ax[ir][ic]
         if len(sub_envs) == 0:
@@ -231,18 +275,33 @@ def explot(
         plt.tight_layout()
     return fig
 
+
 def extable(
     envs: list[ExpEnv],
     axises: tuple[ExpAxis, ...],
     process_fn: Callable,
     translator: Callable[[str], str] | None = None,
 ):
+    """
+    Auto generate table for experiments analysis.
+
+    Args:
+        envs (list[ExpEnv]): A list of experiments
+        axises (tuple[ExpAxis, ...]): Axises for table.
+        process_fn (Callable): Process data for experiments. return format: list of vals | {name: vals}
+        translator (Callable[[str], str] | None, optional): Rewrite str elements in table. Defaults to None.
+
+    Returns:
+        DataFrame: Generated table
+    """
     XX, YY, ZZ, envs_splited = _decompose_envs_by_axis(envs, axises)
     table_data = {}
     if translator is None:
         translator = lambda x: str(x)
     trans_wrapper = lambda x: translator(x.name if hasattr(x, "name") else str(x))
-    for x, y, z in tqdm(itertools.product(XX, YY, ZZ), total=len(XX)*len(YY)*len(ZZ)):
+    for x, y, z in tqdm(
+        itertools.product(XX, YY, ZZ), total=len(XX) * len(YY) * len(ZZ)
+    ):
         sub_envs = envs_splited[x, y, z]
         if len(sub_envs) == 0:
             print(f"Warning: no envs for table cell ({x}, {y}, {z})")
@@ -258,11 +317,20 @@ def extable(
     df = pd.DataFrame.from_dict(table_data, orient="index")
     return df
 
+
 def exshow(
     envs: list[ExpEnv],
     axises: tuple[ExpAxis, ...],
     process_fn: Callable,
 ):
+    """
+    Show custom data for experiments
+
+    Args:
+        envs (list[ExpEnv]): A list of experiments
+        axises (tuple[ExpAxis, ...]): Axises for showing data
+        process_fn (Callable): Process data for experiments
+    """
     XX, YY, ZZ, envs_splited = _decompose_envs_by_axis(envs, axises)
     trans_wrapper = lambda x: x.name if hasattr(x, "name") else str(x)
     selected = []
@@ -280,5 +348,4 @@ def exshow(
             print(v)
         input("Press Enter to continue...")
         # clear screen
-        os.system('cls' if os.name == 'nt' else 'clear')
-    
+        os.system("cls" if os.name == "nt" else "clear")
