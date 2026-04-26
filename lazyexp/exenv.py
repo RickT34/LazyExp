@@ -59,6 +59,7 @@ class DatasetEnv:
     tags: dict = dataclasses.field(default_factory=dict)
     filetype: str = "json"
     name: str = ""
+    prompt_template: str = ""
 
     @staticmethod
     def get_ds_name(data_json: str):
@@ -104,6 +105,7 @@ class DatasetEnv:
 
     def __hash__(self) -> int:
         return hash(repr(self))
+    
 
 
 @dataclasses.dataclass

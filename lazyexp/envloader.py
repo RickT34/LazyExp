@@ -1,7 +1,7 @@
 from .exenv import *
 from datasets import Dataset, load_from_disk
 from .utils import call_function_from_file
-
+import _hooks
 
 def load_dataset(dataset: DatasetEnv) -> Dataset:
     """
@@ -28,7 +28,7 @@ def load_dataset(dataset: DatasetEnv) -> Dataset:
         with open(dataset.path, "r") as f:
             data = json.load(f)
         ds = Dataset.from_list(data)
-    elif dataset.filetype == "py":
+    elif dataset.filetype == "src":
         ds = call_function_from_file(dataset.path, "load_dataset", dataset)
     else:
         raise NotImplementedError(f"Unsupported dataset filetype: {dataset.filetype}")
@@ -36,7 +36,26 @@ def load_dataset(dataset: DatasetEnv) -> Dataset:
         print(
             f"Warning: dataset {dataset.path} is not a Dataset instance, but {type(ds)}"
         )
+    for hook_name, hook_args in dataset.tags.get("load_hooks", []):
+        ds = getattr(_hooks, hook_name)(ds, **hook_args)
     return ds  # type: ignore
+
+def load_inputs(dataset: DatasetEnv) -> list[str]:
+    """
+    Load input data from a dataset, using the prompt template if provided.
+
+    Args:
+        dataset (DatasetEnv): The environment setting the source, path and filetype of the dataset.
+
+    Returns:
+        list[str]: A list of input strings extracted from the dataset.
+    """
+    ds = load_dataset(dataset)
+    if dataset.prompt_template:
+        inputs = [dataset.prompt_template.format(**item) for item in ds]
+    else:
+        inputs = [str(item) for item in ds]
+    return inputs
 
 
 def load_model(

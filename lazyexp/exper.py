@@ -9,8 +9,10 @@ import uuid
 from .scheduler import Scheduler, Task
 from .scheduler_tui import SchedulerUI
 from typing import Callable
+from multiprocessing import Process, get_context
 import dataclasses
 import json
+import contextlib
 
 
 DIR_EXP_HISTORY = Path("exp_history")
@@ -67,9 +69,9 @@ def get_timestamp():
 
 
 class GPUTask(Task):
-    def __init__(self, need: int, name: str, cmd: list[str], output_file: str):
+    def __init__(self, need: int, name: str, runner: Callable, output_file: str):
         super().__init__(need, name)
-        self.cmd = cmd
+        self.runner = runner
         self.output_file = output_file
         self.thread: Thread | None = None
 
@@ -80,47 +82,40 @@ class GPUTask(Task):
         def target():
             try:
                 # 打印开始信息
+                os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
                 id = uuid.uuid4().hex[:4]
                 print(f"    Running [{id}]: {self.output_file}")
                 start_time = time.time()
 
                 # 执行命令并捕获输出
                 with open(self.output_file, "w") as f:
-                    process = subprocess.Popen(
-                        self.cmd,
-                        stdout=f,
-                        stderr=f,
-                        env={**os.environ, "CUDA_VISIBLE_DEVICES": gpu_str},
-                    )
-                    process.wait()  # 等待进程完成
-
+                    with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+                        self.runner()
                     # 计算运行时间
                     duration = time.time() - start_time
-                    msg = f"    Finished [{id}]: Duration {duration:.2f} s. Code: {process.returncode}"
-                    self.returncode = process.returncode
+                    msg = f"    Finished [{id}]: Duration {duration:.2f} s."
                     print(msg)
                     f.write(f"\n\n=== {msg} ===\n")
-                    f.write(f"Experiment command: {' '.join(self.cmd)}\n")
             except Exception as e:
-                print(f"    !Experiment error: {self.cmd} : {e}")
+                print(f"    !Experiment error: {e}")
 
-        self.thread = Thread(target=target)
-        self.thread.start()
+        self.process = get_context("fork").Process(target=target)
+        self.process.start()
 
     def check_finish(self):
         assert self.running
-        assert self.thread is not None
-        return not self.thread.is_alive()
+        assert self.process is not None
+        return not self.process.is_alive()
 
     def close(self):
         super().close()
-        del self.thread
-        self.thread = None
+        del self.process
+        self.process = None
 
 
 def run_exps(
     envs: list[ExpEnv],
-    cmd_maker: Callable[[str], list[str]],
+    runner: Callable[[ExpEnv], None],
     name: str | None = None,
     send_mail: bool = True,
     skip_exist: bool = True,
@@ -161,7 +156,7 @@ def run_exps(
         env.dump(envpath)
         task = GPUTask(
             need=env.model.tags.get("gpus_alloc", 1),
-            cmd=cmd_maker(env.get_output_path("env.json")),
+            runner=lambda: runner(env),
             name=env.get_name(),
             output_file=env.get_output_path(f"exp_{get_timestamp()}.log"),
         )
