@@ -1,4 +1,3 @@
-import subprocess
 import time
 from threading import Thread
 from pathlib import Path
@@ -9,7 +8,7 @@ import uuid
 from .scheduler import Scheduler, Task
 from .scheduler_tui import SchedulerUI
 from typing import Callable
-from multiprocessing import Process, get_context
+from multiprocessing import get_context
 import dataclasses
 import json
 import contextlib
@@ -105,7 +104,10 @@ class GPUTask(Task):
     def check_finish(self):
         assert self.running
         assert self.process is not None
-        return not self.process.is_alive()
+        if not self.process.is_alive():
+            self.returncode = self.process.exitcode
+            return True
+        return False
 
     def close(self):
         super().close()

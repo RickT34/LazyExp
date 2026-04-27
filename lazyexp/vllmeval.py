@@ -1,15 +1,9 @@
 import argparse
 import json
-import time
 import os
-from lazyexp import envloader, exenv
+from . import envloader, exenv
 from datasets import Dataset
 import importlib
-try:
-    from vllm import LLM, SamplingParams
-except ImportError:
-    raise ImportError("Please install vllm to use LLMEvaluator: pip install vllm")
-from transformers import AutoTokenizer
 
 
 def parse_args():
@@ -39,6 +33,10 @@ def parse_args():
 
 
 def main(env: exenv.ExpEnv, max_new_tokens: int=1024, max_ctx_len: int=16384, gpu_memory_utilization: float=0.9):
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError:
+        raise ImportError("Please install vllm to use LLMEvaluator: pip install vllm")
 
     # 1. Load Environment
     # env = exenv.ExpEnv.load(args.env)
