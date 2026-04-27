@@ -15,6 +15,7 @@ import contextlib
 
 
 DIR_EXP_HISTORY = Path("exp_history")
+RUNNER_TYPE = Callable[[ExpEnv], None]
 
 
 def dumpEnvs(envs: list[ExpEnv], name: str, dir: Path = DIR_EXP_HISTORY):
@@ -117,11 +118,10 @@ class GPUTask(Task):
 
 def run_exps(
     envs: list[ExpEnv],
-    runner: Callable[[ExpEnv], None],
+    runner: RUNNER_TYPE,
     name: str | None = None,
-    send_mail: bool = True,
-    skip_exist: bool = True,
-    ui: bool = True,
+    send_mail: bool = False,
+    ui: bool = False,
 ):
     """
     Run experiments from a list of experiment environments.
@@ -151,14 +151,11 @@ def run_exps(
         print("Warning: Not save envs because of inconsistent labels.")
     tasks = []
     for env in envs:
-        if skip_exist and os.path.exists(env.get_output_path()):
-            print(f"Skipping {env}.")
-            continue
         envpath = env.get_output_path("env.json")
         env.dump(envpath)
         task = GPUTask(
-            need=env.model.tags.get("gpus_alloc", 1),
-            runner=lambda: runner(env),
+            need=env.resources_need,
+            runner=lambda env=env: runner(env),
             name=env.get_name(),
             output_file=env.get_output_path(f"exp_{get_timestamp()}.log"),
         )

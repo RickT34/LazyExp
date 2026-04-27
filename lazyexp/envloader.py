@@ -1,7 +1,7 @@
 from .exenv import *
 from datasets import Dataset, load_from_disk
 from .utils import call_function_from_file
-import _hooks
+from . import _hooks
 
 def load_dataset(dataset: DatasetEnv) -> Dataset:
     """
@@ -72,9 +72,14 @@ def load_model(
     Returns:
         tuple[PreTrainedModel, PreTrainedTokenizer]: A pair containing the model and tokenizer instances.
     """
-    return load_model_only(model, model_args), load_tokenizer_only(
+    if model.filetype == "hf":
+        return load_model_only(model, model_args), load_tokenizer_only(
         model, tokenizer_args
     )
+    elif model.filetype == "src":
+        return call_function_from_file(model.path, "load_model", model), call_function_from_file(model.path, "load_tokenizer", model)
+    else:
+        raise NotImplementedError(f"Unsupported model filetype: {model.filetype}")
 
 
 def load_tokenizer_only(model: ModelEnv, tokenizer_args: dict | None = None):

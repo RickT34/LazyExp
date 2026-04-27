@@ -105,7 +105,6 @@ class DatasetEnv:
 
     def __hash__(self) -> int:
         return hash(repr(self))
-    
 
 
 @dataclasses.dataclass
@@ -146,9 +145,10 @@ class ExpEnv:
     dataset: DatasetEnv
     algo: AlgoEnv
     label: str
-    outputs_dir: str = "outputs"
+    outputs_basedir: str = "outputs"
     tags: dict = dataclasses.field(default_factory=dict)
     output_dir: str = ""
+    resources_need: int = 1
 
     def __post_init__(self):
         for k, c in [
@@ -165,7 +165,7 @@ class ExpEnv:
             print(f"Warning: Model path {self.model.path} not found")
         if self.output_dir == "":
             self.output_dir = os.path.join(
-                self.outputs_dir,
+                self.outputs_basedir,
                 self.model.name,
                 self.dataset.name,
                 self.label,

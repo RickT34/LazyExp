@@ -32,12 +32,15 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(env: exenv.ExpEnv, max_new_tokens: int=1024, max_ctx_len: int=16384, gpu_memory_utilization: float=0.9):
+def main(env: exenv.ExpEnv, max_new_tokens: int=1024, max_ctx_len: int=16384, gpu_memory_utilization: float=0.9, skip_exist: bool=True):
     try:
         from vllm import LLM, SamplingParams
     except ImportError:
         raise ImportError("Please install vllm to use LLMEvaluator: pip install vllm")
 
+    if skip_exist and os.path.exists(env.get_output_path()):
+        print(f"Skipping {env}.")
+        exit(0)
     # 1. Load Environment
     # env = exenv.ExpEnv.load(args.env)
 
