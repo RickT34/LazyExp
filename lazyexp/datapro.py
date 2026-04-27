@@ -16,14 +16,7 @@ import enum
 import itertools
 import colorsys
 
-dataset_cache: dict[str, Dataset] = {}
 
-
-def get_dataset_cached(dataset: DatasetEnv):
-    if dataset.path not in dataset_cache:
-        dataset_cache[dataset.path] = envloader.load_dataset(dataset)
-    ds = dataset_cache[dataset.path]
-    return ds
 
 
 def process_exps(envs: list[ExpEnv], process_fn: Callable[[ExpEnv], dict]):

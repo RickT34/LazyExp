@@ -2,7 +2,6 @@ import argparse
 import json
 import os
 from . import envloader, exenv
-from datasets import Dataset
 import importlib
 
 
@@ -32,7 +31,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(env: exenv.ExpEnv, max_new_tokens: int=1024, max_ctx_len: int=16384, gpu_memory_utilization: float=0.9, skip_exist: bool=True):
+def main(env: exenv.ExpEnv, max_new_tokens: int=8192, max_ctx_len: int=16384, gpu_memory_utilization: float=0.9, skip_exist: bool=True):
     try:
         from vllm import LLM, SamplingParams
     except ImportError:
@@ -46,8 +45,8 @@ def main(env: exenv.ExpEnv, max_new_tokens: int=1024, max_ctx_len: int=16384, gp
 
     # 2. Load Dataset
     print(f"Loading dataset...")
-    dataset: Dataset = envloader.load_dataset(env.dataset)
-    print(f"Total samples: {len(dataset)}")
+    inputs = envloader.load_inputs(env.dataset)
+    print(f"Total samples: {len(inputs)}")
 
     # 3. Load Tokenizer (for chat template application)
 
@@ -55,26 +54,20 @@ def main(env: exenv.ExpEnv, max_new_tokens: int=1024, max_ctx_len: int=16384, gp
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # 4. Prepare Prompts
-    assert (
-        "prompt_template" in env.dataset.tags
-    ), "DatasetEnv must have 'prompt_template' tag"
-    prompt_template = env.dataset.tags["prompt_template"]
 
     print("Preparing prompts...")
     prompts = []
     model_len = max_ctx_len
     sampling_times = env.tags.get("sampling_times", 1)
-    for item in dataset:
+    for item in inputs:
         # Format user input using data items
-        user_content = prompt_template.format(**item)
 
         messages = []
         if "system_prompt" in env.dataset.tags:
             messages.append(
                 {"role": "system", "content": env.dataset.tags["system_prompt"]}
             )
-        messages.append({"role": "user", "content": user_content})
+        messages.append({"role": "user", "content": item})
 
         # Apply chat template to get the final text prompt
         text_prompt = tokenizer.apply_chat_template(

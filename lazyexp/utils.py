@@ -27,3 +27,4 @@ def rm_empty_dirs(path):
             dir_path = os.path.join(root, d)
             if not os.listdir(dir_path):
                 os.rmdir(dir_path)
+
