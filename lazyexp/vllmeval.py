@@ -144,6 +144,6 @@ def main(env: exenv.ExpEnv, max_new_tokens: int=8192, max_ctx_len: int=16384, gp
     if os.path.exists(output_file):
         print("Warning: Output file already exists.")
     with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False)
+        json.dump(results, f, ensure_ascii=False, indent=2)
     print("Done!")
 

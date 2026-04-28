@@ -2,7 +2,7 @@ from .exenv import *
 from .exper import RUNNER_TYPE
 from collections import defaultdict
 from typing import Callable
-import envloader
+from . import envloader
 from typing import Any
 
 dataset_cache: dict[str, Any] = {}
