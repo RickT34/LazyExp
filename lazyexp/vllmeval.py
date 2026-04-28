@@ -28,6 +28,11 @@ def parse_args():
         default=0.9,
         help="GPU memory utilization fraction",
     )
+    parser.add_argument(
+        "--skip_exist",
+        action="store_true",
+        help="Skip evaluation if output file already exists",
+    )
     return parser.parse_args()
 
 
@@ -147,3 +152,13 @@ def main(env: exenv.ExpEnv, max_new_tokens: int=8192, max_ctx_len: int=16384, gp
         json.dump(results, f, ensure_ascii=False, indent=2)
     print("Done!")
 
+if __name__ == "__main__":
+    args = parse_args()
+    env = exenv.ExpEnv.load(args.env)
+    main(
+        env,
+        max_new_tokens=args.max_new_tokens,
+        max_ctx_len=args.max_ctx_len,
+        gpu_memory_utilization=args.gpu_memory_utilization,
+        skip_exist=args.skip_exist,
+    )
