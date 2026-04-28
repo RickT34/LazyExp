@@ -3,8 +3,9 @@ from .exper import RUNNER_TYPE
 from collections import defaultdict
 from typing import Callable
 import envloader
+from typing import Any
 
-dataset_cache: dict[str, ] = {}
+dataset_cache: dict[str, Any] = {}
 
 def get_dataset_cached(dataset: DatasetEnv):
     if dataset.path not in dataset_cache:
@@ -31,19 +32,20 @@ class Evaluator:
         return exp_env.get_output_path(self.sub_tgt_file)
 
 class LLMEvaluator(Evaluator):
-    def __init__(self, judger: ModelEnv, prompt_template: str, runner: RUNNER_TYPE, sub_src_file:str="result.json", subdir:str="llmeval"):
+    def __init__(self, judger: ModelEnv, prompt_template: str, runner: RUNNER_TYPE, sub_src_file:str="result.json", subdir:str="llmeval", model_output_field:str="output"):
         super().__init__(sub_src_file, os.path.join(subdir, "result.json"))
         self.subdir = subdir
         self.judger = envCopy(judger, ModelEnv)
         self.prompt_template = prompt_template
         self.runner = runner
+        self.model_output_field = model_output_field
 
     def evaluate(self, exp_env: ExpEnv):
         path = self.get_src_path(exp_env)
         dataset_new = envCopy(exp_env.dataset, DatasetEnv)
         dataset_new.prompt_template = self.prompt_template
         dataset_new.tags["load_hooks"] = [
-            ("loader_llm_eval", {"output_path": path})
+            ("loader_llm_eval", {"output_path": path, "output_field": self.model_output_field})
         ]
         env = ExpEnv(
             model=self.judger,

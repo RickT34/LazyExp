@@ -116,12 +116,10 @@ class GPUTask(Task):
         self.process = None
 
 
-def run_exps(
+def gen_tasks(
     envs: list[ExpEnv],
     runner: RUNNER_TYPE,
     name: str | None = None,
-    send_mail: bool = False,
-    ui: bool = False,
 ):
     """
     Run experiments from a list of experiment environments.
@@ -134,13 +132,8 @@ def run_exps(
         cmd_maker (Callable[[str], list[str]]): A function that takes an environment config path
             and returns a command as a list of strings to be executed.
         name (str | None, optional): The name of the entire experiment run. Defaults to inferred label.
-        send_mail (bool, optional): Whether to send a completion notification email. Defaults to True.
-        skip_exist (bool, optional): Whether to skip environments whose output already exists. Defaults to True.
-        ui (bool, optional): Whether to display a TUI for the scheduler. Defaults to True.
     """
     assert envs, "No envs to run."
-    devices = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
-    assert devices, "No CUDA_VISIBLE_DEVICES set."
     if name is None:
         labels = {e.label for e in envs}
         if len(labels) == 1:
@@ -160,11 +153,16 @@ def run_exps(
             output_file=env.get_output_path(f"exp_{get_timestamp()}.log"),
         )
         tasks.append(task)
+    return tasks
+        
+def run_tasks(tasks: list[Task], ui: bool = True, send_mail: bool = False):
+    devices = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
+    assert devices, "No CUDA_VISIBLE_DEVICES set."
     scheduler = Scheduler(resources=devices, tasks=tasks)
 
     if ui:
         try:
-            sui = SchedulerUI(scheduler, title=name)
+            sui = SchedulerUI(scheduler, title="Experiment Scheduler")
             sui.run()
         except Exception as e:
             print(f"Scheduler UI error: {e}, fallback to non-UI mode.")
