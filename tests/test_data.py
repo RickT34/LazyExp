@@ -1,7 +1,7 @@
 from lazyexp.exenv import *
-from lazyexp.exper import run_exps
+from lazyexp.exper import gen_tasks, run_tasks, RunnerEnv
 import os
-from lazyexp.evaluator import LLMEvaluator
+from lazyexp.runners import LLMEvaluator, skip_if_output_exists
 from lazyexp import envloader
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
@@ -34,10 +34,9 @@ test_dataset = DatasetEnv(
     name="test_dataset",
     prompt_template="Q: {input}\nA: ")
 
-def test_runner(env:ExpEnv):
-    if os.path.exists(env.get_output_path()):
-        print(f"Skipping {env}.")
-        return
+@skip_if_output_exists
+def test_runner(runner_env: RunnerEnv):
+    env = runner_env.exp_env
     model, tokenizer = envloader.load_model(env.model)
     inputs = envloader.load_inputs(env.dataset)
     outputs = []
@@ -47,6 +46,7 @@ def test_runner(env:ExpEnv):
     print("Save to: ", env.get_output_path())
     with open(env.get_output_path(), "w") as f:
         json.dump(outputs, f, indent=4)
+    return 0
         
 def main_test():
     envs = [ExpEnv(
@@ -55,10 +55,12 @@ def main_test():
         algo=AlgoEnv("test_algo"),
         label=f"test_label_{i}",
     ) for i in range(10)]
-    run_exps(envs, test_runner, name="test_exp")
+    tasks = gen_tasks(envs, test_runner, name="test_exp")
+    run_tasks(tasks, ui=False)
     evalator = LLMEvaluator( test_model, "Q: {input}\nA: {output}\nJudge: ", test_runner)
-    run_exps(envs, evalator.evaluate, name="test_eval")
-    
-    
+    tasks = gen_tasks(envs, evalator.runner, name="test_eval")
+    run_tasks(tasks, ui=False)
+
+
 if __name__ == "__main__":
     main_test()

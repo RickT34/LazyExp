@@ -14,8 +14,15 @@ import json
 import contextlib
 
 
+@dataclasses.dataclass
+class RunnerEnv:
+    exp_env: ExpEnv
+    environ: dict
+    log_path: str
+
+
 DIR_EXP_HISTORY = Path("exp_history")
-RUNNER_TYPE = Callable[[ExpEnv], None]
+RUNNER_TYPE = Callable[[RunnerEnv], int]  # (env, envrions, output_path) -> returncode
 
 
 def dumpEnvs(envs: list[ExpEnv], name: str, dir: Path = DIR_EXP_HISTORY):
@@ -69,11 +76,11 @@ def get_timestamp():
 
 
 class GPUTask(Task):
-    def __init__(self, need: int, name: str, runner: Callable, output_file: str):
-        super().__init__(need, name)
+    def __init__(self, env: ExpEnv, runner: RUNNER_TYPE):
+        super().__init__(env.resources_need, env.get_name())
         self.runner = runner
-        self.output_file = output_file
         self.thread: Thread | None = None
+        self.env = env
 
     def start(self, resources: list[int]):
         super().start(resources)
@@ -82,38 +89,35 @@ class GPUTask(Task):
         def target():
             try:
                 # 打印开始信息
-                os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
+                envrions = os.environ.copy()
+                envrions["CUDA_VISIBLE_DEVICES"] = gpu_str
+                log_path = self.env.get_output_path(f"exp_{get_timestamp()}.log")
                 id = uuid.uuid4().hex[:4]
-                print(f"    Running [{id}]: {self.output_file}")
+                print(f"    Running [{id}]: {log_path} on GPUs {gpu_str}...")
                 start_time = time.time()
-
-                # 执行命令并捕获输出
-                with open(self.output_file, "w") as f:
-                    with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-                        self.runner()
-                    # 计算运行时间
-                    duration = time.time() - start_time
-                    msg = f"    Finished [{id}]: Duration {duration:.2f} s."
-                    print(msg)
-                    f.write(f"\n\n=== {msg} ===\n")
+                code = self.runner(RunnerEnv(self.env, envrions, log_path))
+                self.returncode = code
+                # 计算运行时间
+                duration = time.time() - start_time
+                msg = f"    Finished [{id}]: Duration {duration:.2f} s."
+                print(msg)
             except Exception as e:
                 print(f"    !Experiment error: {e}")
 
-        self.process = get_context("fork").Process(target=target)
-        self.process.start()
+        self.thread = Thread(target=target)
+        self.thread.start()
 
     def check_finish(self):
         assert self.running
-        assert self.process is not None
-        if not self.process.is_alive():
-            self.returncode = self.process.exitcode
+        assert self.thread is not None
+        if not self.thread.is_alive():
             return True
         return False
 
     def close(self):
         super().close()
-        del self.process
-        self.process = None
+        del self.thread
+        self.thread = None
 
 
 def gen_tasks(
@@ -147,14 +151,13 @@ def gen_tasks(
         envpath = env.get_output_path("env.json")
         env.dump(envpath)
         task = GPUTask(
-            need=env.resources_need,
-            runner=lambda env=env: runner(env),
-            name=env.get_name(),
-            output_file=env.get_output_path(f"exp_{get_timestamp()}.log"),
+            runner=runner,
+            env=env,
         )
         tasks.append(task)
     return tasks
-        
+
+
 def run_tasks(tasks: list[Task], ui: bool = True, send_mail: bool = False):
     devices = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
     assert devices, "No CUDA_VISIBLE_DEVICES set."

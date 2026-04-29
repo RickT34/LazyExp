@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument(
         "--max_new_tokens",
         type=int,
-        default=1024,
+        default=4096,
         help="Maximum number of tokens to generate",
     )
     parser.add_argument(
@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument(
         "--gpu_memory_utilization",
         type=float,
-        default=0.9,
+        default=0.95,
         help="GPU memory utilization fraction",
     )
     parser.add_argument(
@@ -36,7 +36,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(env: exenv.ExpEnv, max_new_tokens: int=8192, max_ctx_len: int=16384, gpu_memory_utilization: float=0.9, skip_exist: bool=True):
+def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_utilization: float, skip_exist: bool=True):
     try:
         from vllm import LLM, SamplingParams
     except ImportError:
