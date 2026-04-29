@@ -190,9 +190,12 @@ class ExpEnv:
         d = json.loads(json_str)
         return ExpEnv(**d)
 
-    def dump(self, path):
+    def dump(self, path:str|None=None):
+        if path is None:
+            path = self.get_output_path("env.json")
         with open(path, "w") as f:
             json.dump(dataclasses.asdict(self), f, indent=4)
+        return path
 
     @staticmethod
     def load(path):

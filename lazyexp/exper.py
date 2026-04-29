@@ -99,7 +99,7 @@ class GPUTask(Task):
                 self.returncode = code
                 # 计算运行时间
                 duration = time.time() - start_time
-                msg = f"    Finished [{id}]: Duration {duration:.2f} s."
+                msg = f"    Finished [{id}], code: {code}, Duration {duration:.2f} s."
                 print(msg)
             except Exception as e:
                 print(f"    !Experiment error: {e}")
@@ -148,8 +148,7 @@ def gen_tasks(
         print("Warning: Not save envs because of inconsistent labels.")
     tasks = []
     for env in envs:
-        envpath = env.get_output_path("env.json")
-        env.dump(envpath)
+        env.dump()
         task = GPUTask(
             runner=runner,
             env=env,
