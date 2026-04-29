@@ -37,7 +37,9 @@ def parse_args():
 
 
 def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_utilization: float, skip_exist: bool=True):
+    
     try:
+        import vllm
         from vllm import LLM, SamplingParams
     except ImportError:
         raise ImportError("Please install vllm to use LLMEvaluator: pip install vllm")
@@ -45,6 +47,7 @@ def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_ut
     if skip_exist and os.path.exists(env.get_output_path()):
         print(f"Skipping {env}.")
         exit(0)
+    vllm.envs.VLLM_HOST_IP="127.0.0.1"
     # 1. Load Environment
     # env = exenv.ExpEnv.load(args.env)
 
@@ -88,13 +91,16 @@ def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_ut
     print(f"Initializing VLLM with model: {env.model.path}")
     # Extract any model args if present in env, though VLLM uses its own set
     # We mainly care about the path and basic valid args
-    llm = LLM(
+    vllm_args = dict(
         model=env.model.path,
         trust_remote_code=True,
         gpu_memory_utilization=gpu_memory_utilization,
         max_model_len=model_len,
-        dtype="auto",
+        dtype="auto"
     )
+    vllm_args.update(env.model.tags.get("vllm_args", {}))
+    print(f"vllm args:{vllm_args}")
+    llm = LLM(**vllm_args)
 
     # Configure Sampling Parameters
     # llmeval.py used do_sample=False, so we use temperature=0

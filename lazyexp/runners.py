@@ -57,7 +57,8 @@ class LLMEvaluator(Evaluator):
             label="llmeval",
             output_dir=exp_env.get_output_path(self.subdir),
         )
-        runner_env_new = RunnerEnv(env, runner_env.environ, runner_env.log_path)
+        env.dump()
+        runner_env_new = RunnerEnv(env, runner_env.environ, env.get_output_path("llm_judge.log"))
         return self._runner(runner_env_new)
 
 class LineCheck(Evaluator):
