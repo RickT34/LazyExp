@@ -67,7 +67,7 @@ def main(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    enable_thinking = env.model.tags.get("enable_thinking", False)
+    enable_thinking = env.model.thinking
     print(f"thinking mode: {enable_thinking}")
 
     print("Preparing prompts...")

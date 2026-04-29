@@ -25,6 +25,7 @@ class ModelEnv:
     name: str
     path: str
     layers: int
+    thinking: bool|None = None
     tags: dict = dataclasses.field(default_factory=dict)
     filetype: str = "hf"
 
