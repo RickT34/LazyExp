@@ -36,7 +36,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_utilization: float, skip_exist: bool=True):
+def main(
+    env: exenv.ExpEnv,
+    max_new_tokens: int,
+    max_ctx_len: int,
+    gpu_memory_utilization: float,
+    skip_exist: bool = True,
+):
     try:
         from vllm import LLM, SamplingParams
     except ImportError:
@@ -59,6 +65,8 @@ def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_ut
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    enable_thinking = env.model.tags.get("enable_thinking", False)
+    print(f"thinking mode: {enable_thinking}")
 
     print("Preparing prompts...")
     prompts = []
@@ -75,9 +83,14 @@ def main(env: exenv.ExpEnv, max_new_tokens: int, max_ctx_len: int, gpu_memory_ut
         messages.append({"role": "user", "content": item})
 
         # Apply chat template to get the final text prompt
-        text_prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        chat_template_args = dict(
+            messages=messages,
+            tokenize=False,
+            add_generation_prompt=True,
         )
+        if enable_thinking is not None:
+            chat_template_args["enable_thinking"] = enable_thinking
+        text_prompt = tokenizer.apply_chat_template(**chat_template_args)
         if len(text_prompt) > model_len:
             print(
                 f"Warning: Prompt length {len(text_prompt)} exceeds model max context length {model_len}."
