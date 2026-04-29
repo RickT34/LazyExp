@@ -5,6 +5,31 @@ from . import envloader, exenv
 import importlib
 
 
+def apply_chat_template(tokenizer, conversation, enable_thinking: bool | None):
+    apply_args = dict(
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    if enable_thinking is None:
+        return tokenizer.apply_chat_template(conversation, **apply_args)
+
+    try:
+        return tokenizer.apply_chat_template(
+            conversation,
+            enable_thinking=enable_thinking,
+            **apply_args,
+        )
+    except TypeError as exc:
+        if "enable_thinking" not in str(exc):
+            raise
+        print(
+            "Warning: tokenizer.apply_chat_template does not support "
+            "enable_thinking in this transformers version; falling back "
+            "to the model default behavior."
+        )
+        return tokenizer.apply_chat_template(conversation, **apply_args)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="LLM High-Performance Evaluation Script (VLLM Backend)"
@@ -85,14 +110,7 @@ def main(
         messages.append({"role": "user", "content": item})
 
         # Apply chat template to get the final text prompt
-        chat_template_args = dict(
-            messages=messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        if enable_thinking is not None:
-            chat_template_args["enable_thinking"] = enable_thinking
-        text_prompt = tokenizer.apply_chat_template(**chat_template_args)
+        text_prompt = apply_chat_template(tokenizer, messages, enable_thinking)
         if len(text_prompt) > model_len:
             print(
                 f"Warning: Prompt length {len(text_prompt)} exceeds model max context length {model_len}."
