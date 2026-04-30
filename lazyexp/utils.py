@@ -22,9 +22,10 @@ def call_function_from_file(file_path, function_name, *args, **kwargs):
     return getattr(module, function_name)(*args, **kwargs)
 
 def rm_empty_dirs(path):
-    for root, dirs, files in os.walk(path, topdown=False):
-        for d in dirs:
-            dir_path = os.path.join(root, d)
-            if not os.listdir(dir_path):
-                os.rmdir(dir_path)
+    if not os.path.isdir(path):
+        return
+    if not os.listdir(path):
+        os.rmdir(path)
+        parent = os.path.dirname(path)
+        rm_empty_dirs(parent)
 

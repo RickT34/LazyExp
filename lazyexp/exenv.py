@@ -1,11 +1,8 @@
-from pathlib import Path
 import dataclasses
 import os
 import json
 import itertools
 import math
-import re
-from tqdm import tqdm
 import shutil
 
 
@@ -244,45 +241,26 @@ def genEnvs(
         )
     return envs
 
+import zipfile
 
-def dl_from_remote(
-    envs: list[ExpEnv],
-    ssh_host: str,
-    remote_base_path: str,
-    filename: str = "result.json",
-):
-    """
-    Downloads and updates local experiment results from a mapped remote server workspace.
+def pack_envs(envs: list[ExpEnv], output_file:str="outputs.zip", dry_run:bool=False):
+    paths = [e.get_output_dir() for e in envs]
+    with zipfile.ZipFile(output_file, 'w') as zipf:
+        for path in paths:
+            for root, dirs, files in os.walk(path):
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    if dry_run:
+                        print(f"Packing {file_path} -> {output_file}")
+                    else:
+                        zipf.write(file_path, file_path)
+    return output_file
 
-    Args:
-        envs (list[ExpEnv]): Environments specifying the results needed.
-        ssh_host (str): String identifier for SSH host.
-        remote_base_path (str): Relative root path corresponding identically on the remote side.
-        filename (str, optional): Remote target JSON log file. Defaults to 'result.json'.
-    """
-    reqs = []
-    for env in tqdm(envs):
-        local_path = env.get_output_path(filename)
-        if os.path.exists(local_path):
-            continue
-        reqs.append(local_path)
-    # pack files on the remote side
-    pack_cmd = f'ssh {ssh_host} "tar -czf /tmp/lazyexp_dl.tar.gz -C {remote_base_path} {" ".join(reqs)}"'
-    print(f"Packing files on remote side...")
-    os.system(pack_cmd)
-    # download the packed file
-    dl_cmd = f"rsync -ravzP {ssh_host}:/tmp/lazyexp_dl.tar.gz /tmp/lazyexp_dl.tar.gz"
-    print(dl_cmd)
-    os.system(dl_cmd)
-    # unpack files locally
-    unpack_cmd = f"tar -xzf /tmp/lazyexp_dl.tar.gz -C {Path.cwd().as_posix()}"
-    os.system(unpack_cmd)
-
-
-def envMove(src: ExpEnv, dst: ExpEnv):
-    """
-    Move the output dir from src env to dst env
-    """
-    src_output_dir = src.get_output_dir()
-    dst_output_dir = dst.get_output_dir()
-    os.rename(src_output_dir, dst_output_dir)
+def move_envs(envs: list[ExpEnv], base_dir: str, target_dir:str, dry_run:bool=False):
+    for env in envs:
+        src = env.get_output_dir()
+        dst = os.path.join(target_dir, os.path.relpath(src, base_dir))
+        if dry_run:
+            print(f"{src} -> {dst}")
+        else:
+            shutil.move(src, dst)
