@@ -54,6 +54,8 @@ class Workflow(Runner):
                         f"Step {step.name} requires path {p} which is not produced by previous steps."
                     )
             for p in step.output_paths:
+                if p in current_paths:
+                    print(f"Warning: Step {step.name} produces path {p} which is already produced by previous steps.")
                 current_paths.add(p)
                 p.parent.mkdir(parents=True, exist_ok=True)
         return list(current_paths)
@@ -89,6 +91,7 @@ class Workflow(Runner):
             print(f"  Step {i}: {step.name}")
             print(f"    Requires: {[str(p) for p in step.required_paths]}")
             print(f"    Outputs: {[str(p) for p in step.output_paths]}")
+        print(f"Outputs: {[str(p) for p in self.output_paths]}")
 
 
 class LLMEvalEnv(Runner):
@@ -135,6 +138,13 @@ class LLMEvalEnv(Runner):
 
 class LineCheck(Runner):
     def __init__(self, check_func, sub_src_file: str, sub_tgt_file: str):
+        """LineCheck
+
+        Args:
+            check_func (Callable[[Any, Any], Any]): (output, sample) -> result
+            sub_src_file (str): _description_
+            sub_tgt_file (str): _description_
+        """
         self.check_func = check_func
         super().__init__("linecheck", [Path(sub_src_file)], [Path(sub_tgt_file)])
 
@@ -146,17 +156,16 @@ class LineCheck(Runner):
         assert len(results) == len(
             dataset
         ), f"LineCheck: Exp {exp_env.get_name()}. {len(results)} != {len(dataset)}"
-        res = [self.check_func(output=o, **item) for o, item in zip(results, dataset)]
+        res = [self.check_func(o, sample) for o, sample in zip(results, dataset)]
         with open(self.output_paths[0], "w") as f:
             json.dump(res, f, indent=2)
-        return 0
 
 
 class BinSum(Runner):
     def __init__(self, sub_src_file: str, sub_tgt_file: str):
         super().__init__("binsum", [Path(sub_src_file)], [Path(sub_tgt_file)])
 
-    def runner(self, exp_env: ExpEnv):
+    def run(self, exp_env: ExpEnv):
         path = self.required_paths[0]
         with open(path, "r") as f:
             result = json.load(f)
@@ -166,8 +175,6 @@ class BinSum(Runner):
         res_path = self.output_paths[0]
         with open(res_path, "w") as f:
             json.dump(bins, f, indent=2)
-        return 0
-
 
 class CmdExec(Runner):
     def __init__(
@@ -208,7 +215,7 @@ class EmvDump(Runner):
         exp_env.dump(exp_env.get_output_path(self.output_paths[0]))
 
 
-def prefab_vllmeval(env_path: str = "env.json"):
+def prefab_vllmeval(env_path: str = "env.json", output_path: str = "result.json"):
     return [
         CmdExec(
             cmd_func=lambda env: [
@@ -219,13 +226,13 @@ def prefab_vllmeval(env_path: str = "env.json"):
                 env.get_output_path(env_path).as_posix(),
             ],
             required_paths=[Path(env_path)],
-            output_paths=[Path("result.json")],
+            output_paths=[Path(output_path)],
             name="vllm_runner",
         )
     ]
 
 
-def prefab_llmjudge(
+def prefab_llmeval(
     judger: ModelEnv, prompt_template: str, model_output_field: str = "output"
 ):
     return [
@@ -234,5 +241,5 @@ def prefab_llmjudge(
             prompt_template=prompt_template,
             model_output_field=model_output_field,
         ),
-        *prefab_vllmeval("llmeval/env.json"),
+        *prefab_vllmeval("llmeval/env.json", "llmeval/result.json"),
     ]

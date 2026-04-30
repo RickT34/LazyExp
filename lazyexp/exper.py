@@ -108,7 +108,6 @@ class GPUTask(Task):
 def gen_tasks(
     envs: list[ExpEnv],
     runner: Runner,
-    name: str | None = None,
 ):
     """
     Run experiments from a list of experiment environments.
@@ -119,17 +118,10 @@ def gen_tasks(
     Args:
         envs (list[ExpEnv]): List of environments representing individual experiments.
         runner (Runner): The runner to execute the experiments.
-        name (str | None, optional): The name of the entire experiment run. Defaults to inferred label.
     """
     assert envs, "No envs to run."
-    if name is None:
-        labels = {e.label for e in envs}
-        if len(labels) == 1:
-            name = labels.pop()
-    if name is not None:
-        dumpEnvs(envs, name, DIR_EXP_HISTORY)
-    else:
-        print("Warning: Not save envs because of inconsistent labels.")
+    name = runner.name
+    dumpEnvs(envs, name, DIR_EXP_HISTORY)
     tasks = []
     for env in envs:
         task = GPUTask(
