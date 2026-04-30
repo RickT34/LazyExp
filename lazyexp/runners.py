@@ -234,5 +234,5 @@ def prefab_llmjudge(
             prompt_template=prompt_template,
             model_output_field=model_output_field,
         ),
-        prefab_vllmeval("llmeval/env.json"),
+        *prefab_vllmeval("llmeval/env.json"),
     ]
