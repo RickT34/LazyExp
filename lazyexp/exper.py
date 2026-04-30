@@ -12,6 +12,7 @@ from multiprocessing import get_context, Process
 import dataclasses
 import json
 from .runners import Runner
+from .utils import get_timestamp, redirect_out_to_file
 
 
 DIR_EXP_HISTORY = Path("exp_history")
@@ -57,21 +58,13 @@ def loadEnvs(name: str, dir: Path = DIR_EXP_HISTORY) -> list[ExpEnv]:
     return envs
 
 
-def get_timestamp():
-    """
-    Get the current timestamp as a formatted string.
-
-    Returns:
-        str: Current time in 'YYYYMMDD_HHMMSS' format.
-    """
-    return time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
 
 class GPUTask(Task):
     def __init__(self, env: ExpEnv, runner: Runner):
         super().__init__(env.resources_need, env.get_name())
         self.runner = runner
-        self.process: Process | None = None
+        self.process = None
         self.env = env
 
     def start(self, resources: list[int]):
@@ -83,17 +76,20 @@ class GPUTask(Task):
                 # 打印开始信息
                 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
                 id = uuid.uuid4().hex[:4]
+                log_path = self.env.get_output_path(f"exp_{get_timestamp()}.log")
                 print(f"    Running [{id}]: {log_path} on GPUs {gpu_str}...")
                 start_time = time.time()
-                self.runner.run(self.env)
+                with redirect_out_to_file(log_path):
+                    self.runner.run(self.env)
                 # 计算运行时间
                 duration = time.time() - start_time
                 msg = f"    Finished [{id}], Duration {duration:.2f} s."
+                self.returncode = 0
                 print(msg)
             except Exception as e:
                 print(f"    !Experiment error: {e}")
 
-        self.process = Process(target=target)
+        self.process = get_context("fork").Process(target=target)
         self.process.start()
 
     def check_finish(self):
@@ -111,7 +107,7 @@ class GPUTask(Task):
 
 def gen_tasks(
     envs: list[ExpEnv],
-    runner: RUNNER_TYPE,
+    runner: Runner,
     name: str | None = None,
 ):
     """
@@ -122,8 +118,7 @@ def gen_tasks(
 
     Args:
         envs (list[ExpEnv]): List of environments representing individual experiments.
-        cmd_maker (Callable[[str], list[str]]): A function that takes an environment config path
-            and returns a command as a list of strings to be executed.
+        runner (Runner): The runner to execute the experiments.
         name (str | None, optional): The name of the entire experiment run. Defaults to inferred label.
     """
     assert envs, "No envs to run."
@@ -137,7 +132,6 @@ def gen_tasks(
         print("Warning: Not save envs because of inconsistent labels.")
     tasks = []
     for env in envs:
-        env.dump()
         task = GPUTask(
             runner=runner,
             env=env,

@@ -2,6 +2,7 @@ import importlib.util
 import sys
 import os
 from contextlib import contextmanager
+import time
 
 _module_count = 0
 def call_function_from_file(file_path, function_name, *args, **kwargs):
@@ -30,6 +31,14 @@ def rm_empty_dirs(path):
         parent = os.path.dirname(path)
         rm_empty_dirs(parent)
 
+def get_timestamp():
+    """
+    Get the current timestamp as a formatted string.
+
+    Returns:
+        str: Current time in 'YYYYMMDD_HHMMSS' format.
+    """
+    return time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
 @contextmanager
 def redirect_out_to_file(file_path):

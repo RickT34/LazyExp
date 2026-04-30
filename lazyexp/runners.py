@@ -21,7 +21,9 @@ def get_dataset_cached(dataset: DatasetEnv):
 
 
 class Runner:
-    def __init__(self, name: str, required_paths: list[Path]=[], output_paths: list[Path]=[]):
+    def __init__(
+        self, name: str, required_paths: list[Path] = [], output_paths: list[Path] = []
+    ):
         self.name = name
         self.required_paths = required_paths
         self.output_paths = output_paths
@@ -31,12 +33,17 @@ class Runner:
 
 
 class Workflow(Runner):
-    def __init__(self, name: str, steps: list[Runner], skip_success: bool, logs_dir: str | Path = "logs"):
+    def __init__(
+        self,
+        name: str,
+        steps: list[Runner],
+        skip_success: bool,
+        logs_dir: str | Path = "logs",
+    ):
         self.steps = steps
         self.skip_success = skip_success
         self.logs_dir = Path(logs_dir)
         super().__init__(name, [], self._check_paths())
-        
 
     def _check_paths(self):
         current_paths = set()
@@ -68,8 +75,14 @@ class Workflow(Runner):
             step_name = f"{i}_{step.name}"
             log_path = logs_dir / f"{step_name}.log"
             with redirect_out_to_file(log_path):
-                step.run(exp_env)
-                
+                try:
+                    step.run(exp_env)
+                except Exception as e:
+                    e.add_note(f"Step {step_name} failed.")
+                    print(e)
+                    raise e
+            print(f"Step {step_name} completed.")
+
     def info(self):
         print(f"Workflow {self.name}:")
         for i, step in enumerate(self.steps):
@@ -89,7 +102,7 @@ class LLMEvalEnv(Runner):
     ):
         self.sub_tgt_dir = Path(sub_tgt_dir)
         super().__init__(
-            "llmeval", [Path(sub_src_file)], [self.sub_tgt_dir / "env.json"]
+            "llmeval_mkenv", [Path(sub_src_file)], [self.sub_tgt_dir / "env.json"]
         )
         self.judger = envCopy(judger, ModelEnv)
         self.prompt_template = prompt_template
@@ -102,7 +115,10 @@ class LLMEvalEnv(Runner):
         dataset_new.tags["load_hooks"] = [
             (
                 "loader_llm_eval",
-                {"output_path": path, "output_field": self.model_output_field},
+                {
+                    "output_path": path.as_posix(),
+                    "output_field": self.model_output_field,
+                },
             )
         ]
         env = ExpEnv(
@@ -112,7 +128,9 @@ class LLMEvalEnv(Runner):
             label="llmeval",
             output_dir=exp_env.get_output_path(self.sub_tgt_dir).as_posix(),
         )
-        env.dump(self.output_paths[0])
+        env_path = exp_env.get_output_path(self.output_paths[0])
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        env.dump(env_path)
 
 
 class LineCheck(Runner):
@@ -181,15 +199,40 @@ class NoExists(Runner):
             if os.path.exists(path):
                 raise FileExistsError(f"Path {path} already exists.")
 
-vllm_runner = CmdExec(
-    cmd_func=lambda env: [
-        sys.executable,
-        "-m",
-        "lazyexp.vllmeval",
-        "--env",
-        env.get_output_path("env.json").as_posix(),
-    ],
-    required_paths=[Path("env.json")],
-    output_paths=[Path("result.json")],
-    name="vllm_runner",
-)
+
+class EmvDump(Runner):
+    def __init__(self, output_path: str = "env.json"):
+        super().__init__("envdump", [], [Path(output_path)])
+
+    def run(self, exp_env: envloader.ExpEnv):
+        exp_env.dump(exp_env.get_output_path(self.output_paths[0]))
+
+
+def prefab_vllmeval(env_path: str = "env.json"):
+    return [
+        CmdExec(
+            cmd_func=lambda env: [
+                sys.executable,
+                "-m",
+                "lazyexp.vllmeval",
+                "--env",
+                env.get_output_path(env_path).as_posix(),
+            ],
+            required_paths=[Path(env_path)],
+            output_paths=[Path("result.json")],
+            name="vllm_runner",
+        )
+    ]
+
+
+def prefab_llmjudge(
+    judger: ModelEnv, prompt_template: str, model_output_field: str = "output"
+):
+    return [
+        LLMEvalEnv(
+            judger=judger,
+            prompt_template=prompt_template,
+            model_output_field=model_output_field,
+        ),
+        prefab_vllmeval("llmeval/env.json"),
+    ]

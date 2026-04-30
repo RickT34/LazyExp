@@ -1,7 +1,7 @@
 from lazyexp.exenv import *
-from lazyexp.exper import gen_tasks, run_tasks, RunnerEnv
+from lazyexp.exper import gen_tasks, run_tasks
 import os
-from lazyexp.runners import LLMEvaluator, skip_if_output_exists
+from lazyexp.runners import *
 from lazyexp import envloader
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
@@ -34,19 +34,20 @@ test_dataset = DatasetEnv(
     name="test_dataset",
     prompt_template="Q: {input}\nA: ")
 
-@skip_if_output_exists
-def test_runner(runner_env: RunnerEnv):
-    env = runner_env.exp_env
-    model, tokenizer = envloader.load_model(env.model)
-    inputs = envloader.load_inputs(env.dataset)
-    outputs = []
-    for item in inputs:
-        output = model(item)
-        outputs.append(output)
-    print("Save to: ", env.get_output_path())
-    with open(env.get_output_path(), "w") as f:
-        json.dump(outputs, f, indent=4)
-    return 0
+class test_runner(Runner):
+    def __init__(self):
+        super().__init__("test_runner", [], [Path("result.json")])
+        
+    def run(self, exp_env: envloader.ExpEnv):
+        model, tokenizer = envloader.load_model(exp_env.model)
+        inputs = envloader.load_inputs(exp_env.dataset)
+        outputs = []
+        for item in inputs:
+            output = model(item)
+            outputs.append(output)
+        print("Save to: ", exp_env.get_output_path())
+        with open(exp_env.get_output_path(), "w") as f:
+            json.dump(outputs, f, indent=4)
         
 def main_test():
     envs = [ExpEnv(
@@ -55,10 +56,8 @@ def main_test():
         algo=AlgoEnv("test_algo"),
         label=f"test_label_{i}",
     ) for i in range(10)]
-    tasks = gen_tasks(envs, test_runner, name="test_exp")
-    run_tasks(tasks, ui=False)
-    evalator = LLMEvaluator( test_model, "Q: {input}\nA: {output}\nJudge: ", test_runner)
-    tasks = gen_tasks(envs, evalator.runner, name="test_eval")
+    workflow = Workflow("test_workflow", [test_runner(), LLMEvalEnv(test_model, "Q: {input}\nA: {output}\nJudge: "), test_runner()], False)
+    tasks = gen_tasks(envs, workflow, name="test_exp")
     run_tasks(tasks, ui=False)
 
 
