@@ -4,6 +4,7 @@ import json
 import itertools
 import math
 import shutil
+from pathlib import Path
 
 
 @dataclasses.dataclass
@@ -175,10 +176,10 @@ class ExpEnv:
 
     def get_output_dir(self):
         os.makedirs(self.output_dir, exist_ok=True)
-        return self.output_dir
+        return Path(self.output_dir)
 
-    def get_output_path(self, filename: str = "result.json"):
-        return os.path.join(self.get_output_dir(), filename)
+    def get_output_path(self, filename: str|Path = "result.json"):
+        return self.get_output_dir() / filename
 
     def to_json(self):
         return json.dumps(dataclasses.asdict(self))
@@ -188,7 +189,7 @@ class ExpEnv:
         d = json.loads(json_str)
         return ExpEnv(**d)
 
-    def dump(self, path:str|None=None):
+    def dump(self, path:str|Path|None=None):
         if path is None:
             path = self.get_output_path("env.json")
         with open(path, "w") as f:

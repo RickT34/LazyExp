@@ -8,21 +8,13 @@ import uuid
 from .scheduler import Scheduler, Task
 from .scheduler_tui import SchedulerUI
 from typing import Callable
-from multiprocessing import get_context
+from multiprocessing import get_context, Process
 import dataclasses
 import json
-import contextlib
-
-
-@dataclasses.dataclass
-class RunnerEnv:
-    exp_env: ExpEnv
-    environ: dict
-    log_path: str
+from .runners import Runner
 
 
 DIR_EXP_HISTORY = Path("exp_history")
-RUNNER_TYPE = Callable[[RunnerEnv], int]  # (env, envrions, output_path) -> returncode
 
 
 def dumpEnvs(envs: list[ExpEnv], name: str, dir: Path = DIR_EXP_HISTORY):
@@ -76,10 +68,10 @@ def get_timestamp():
 
 
 class GPUTask(Task):
-    def __init__(self, env: ExpEnv, runner: RUNNER_TYPE):
+    def __init__(self, env: ExpEnv, runner: Runner):
         super().__init__(env.resources_need, env.get_name())
         self.runner = runner
-        self.thread: Thread | None = None
+        self.process: Process | None = None
         self.env = env
 
     def start(self, resources: list[int]):
@@ -89,35 +81,32 @@ class GPUTask(Task):
         def target():
             try:
                 # 打印开始信息
-                envrions = os.environ.copy()
-                envrions["CUDA_VISIBLE_DEVICES"] = gpu_str
-                log_path = self.env.get_output_path(f"exp_{get_timestamp()}.log")
+                os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
                 id = uuid.uuid4().hex[:4]
                 print(f"    Running [{id}]: {log_path} on GPUs {gpu_str}...")
                 start_time = time.time()
-                code = self.runner(RunnerEnv(self.env, envrions, log_path))
-                self.returncode = code
+                self.runner.run(self.env)
                 # 计算运行时间
                 duration = time.time() - start_time
-                msg = f"    Finished [{id}], code: {code}, Duration {duration:.2f} s."
+                msg = f"    Finished [{id}], Duration {duration:.2f} s."
                 print(msg)
             except Exception as e:
                 print(f"    !Experiment error: {e}")
 
-        self.thread = Thread(target=target)
-        self.thread.start()
+        self.process = Process(target=target)
+        self.process.start()
 
     def check_finish(self):
         assert self.running
-        assert self.thread is not None
-        if not self.thread.is_alive():
+        assert self.process is not None
+        if not self.process.is_alive():
             return True
         return False
 
     def close(self):
         super().close()
-        del self.thread
-        self.thread = None
+        del self.process
+        self.process = None
 
 
 def gen_tasks(
