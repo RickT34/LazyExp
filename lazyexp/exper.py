@@ -84,10 +84,11 @@ class GPUTask(Task):
                 # 计算运行时间
                 duration = time.time() - start_time
                 msg = f"    Finished [{id}], Duration {duration:.2f} s."
-                self.returncode = 0
                 print(msg)
+                return 0
             except Exception as e:
                 print(f"    !Experiment error: {e}")
+                return 1
 
         self.process = get_context("fork").Process(target=target)
         self.process.start()
@@ -96,6 +97,7 @@ class GPUTask(Task):
         assert self.running
         assert self.process is not None
         if not self.process.is_alive():
+            self.returncode = self.process.exitcode
             return True
         return False
 

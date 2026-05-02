@@ -23,7 +23,7 @@ class ModelEnv:
     name: str
     path: str
     layers: int
-    thinking: bool|None = None
+    thinking: bool | None = None
     tags: dict = dataclasses.field(default_factory=dict)
     filetype: str = "hf"
 
@@ -178,7 +178,7 @@ class ExpEnv:
         os.makedirs(self.output_dir, exist_ok=True)
         return Path(self.output_dir)
 
-    def get_output_path(self, filename: str|Path = "result.json"):
+    def get_output_path(self, filename: str | Path = "result.json"):
         return self.get_output_dir() / filename
 
     def to_json(self):
@@ -189,7 +189,7 @@ class ExpEnv:
         d = json.loads(json_str)
         return ExpEnv(**d)
 
-    def dump(self, path:str|Path|None=None):
+    def dump(self, path: str | Path | None = None):
         if path is None:
             path = self.get_output_path("env.json")
         with open(path, "w") as f:
@@ -242,26 +242,59 @@ def genEnvs(
         )
     return envs
 
+
 import zipfile
 
-def pack_envs(envs: list[ExpEnv], output_file:str="outputs.zip", dry_run:bool=False):
-    paths = [e.get_output_dir() for e in envs]
-    with zipfile.ZipFile(output_file, 'w') as zipf:
+
+def pack_envs(
+    envs: list[ExpEnv],
+    sub_paths: list[Path] = [],
+    output_file: str = "outputs.zip",
+    dry_run: bool = False,
+):
+    if sub_paths:
+        paths = [e.get_output_path(p) for e in envs for p in sub_paths]
+    else:
+        paths = [e.get_output_dir() for e in envs]
+    with zipfile.ZipFile(output_file, "w") as zipf:
         for path in paths:
-            for root, dirs, files in os.walk(path):
-                for filename in files:
-                    file_path = os.path.join(root, filename)
-                    if dry_run:
-                        print(f"Packing {file_path} -> {output_file}")
-                    else:
-                        zipf.write(file_path, file_path)
+            if not path.exists(): continue
+            if path.is_dir():
+                for root, dirs, files in os.walk(path):
+                    for filename in files:
+                        file_path = os.path.join(root, filename)
+                        if dry_run:
+                            print(f"Packing {file_path} -> {output_file}")
+                        else:
+                            zipf.write(file_path, file_path)
+            else:
+                if dry_run:
+                    print(f"Packing {path} -> {output_file}")
+                else:
+                    zipf.write(path, path)
     return output_file
 
-def move_envs(envs: list[ExpEnv], base_dir: str, target_dir:str, dry_run:bool=False):
+
+def move_envs(
+    envs: list[ExpEnv],
+    base_dir: str,
+    target_dir: str,
+    sub_paths: list[Path] = [],
+    dry_run: bool = False,
+):
     for env in envs:
-        src = env.get_output_dir()
-        dst = os.path.join(target_dir, os.path.relpath(src, base_dir))
-        if dry_run:
-            print(f"{src} -> {dst}")
+        files = []
+        if sub_paths:
+            for f in sub_paths:
+                path = env.get_output_path(f)
+                if path.exists():
+                    files.append(path)
         else:
-            shutil.move(src, dst)
+            files.append(env.get_output_dir())
+        for src in files:
+            dst = os.path.join(target_dir, os.path.relpath(src, base_dir))
+            if dry_run:
+                print(f"{src} -> {dst}")
+            else:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.move(src, dst)

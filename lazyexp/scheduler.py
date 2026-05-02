@@ -69,4 +69,4 @@ class Scheduler:
     def run(self):
         while not self.finished():
             self.do_schedule()
-            time.sleep(1)
+            time.sleep(0.2)
