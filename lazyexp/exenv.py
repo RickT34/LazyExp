@@ -290,7 +290,9 @@ def move_envs(
                 if path.exists():
                     files.append(path)
         else:
-            files.append(env.get_output_dir())
+            path = env.get_output_dir()
+            if path.exists():
+                files.append(path)
         for src in files:
             dst = os.path.join(target_dir, os.path.relpath(src, base_dir))
             if dry_run:
