@@ -14,9 +14,7 @@ dependencies = [
     "rich",
     "matplotlib",
     "tqdm",
-    "transformers",
     "datasets",
-    "torch",
 ]
 
 # 自动发现包 (通常不需要改，除非你的目录结构很特殊)

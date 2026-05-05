@@ -132,16 +132,111 @@ def _decompose_envs_by_axis(envs: list[ExpEnv], axises: tuple[ExpAxis, ...]):
         envs_splited[key].append(env)
     return XX, YY, ZZ, envs_splited
 
+class Plotter:
+    def __init__(self, colors: list[str] = [], plot_args: dict = DEFAULT_PLOT_ARGS) -> None:
+        self.colors_mem = {}
+        self.colors = colors
+        self.plot_args = plot_args
+
+    def get_color(self, label: str) -> str:
+        if label in self.colors_mem:
+            return self.colors_mem[label]
+        if self.colors:
+            color = self.colors.pop(0)
+        else:
+            color = get_random_color()
+        self.colors_mem[label] = color
+        return color
+    
+    def plot(self, ax: axes.Axes, envs:list[ExpEnv]):
+        raise NotImplementedError()
+    
+    def set_colors(self, colors: list[str]):
+        self.colors = colors
+        
+    def set_plot_args(self, plot_args: dict):
+        self.plot_args = plot_args
+    
+class LinePlotter(Plotter):
+    def __init__(self, process_fn: Callable[[list[ExpEnv]], tuple[list, dict[str, list]]]) -> None:
+        """process_fn: Callable[[list[ExpEnv]], tuple[list, dict[str, list]]], where the return format is (xticks, {label:ydata, ...})
+        """
+        self.process_fn = process_fn
+        super().__init__()
+    
+    def plot(self, ax: axes.Axes, envs: list[ExpEnv]):
+        data = self.process_fn(envs)
+        x, y = data
+        if isinstance(x[0], str):
+            x2 = np.arange(len(x))
+            ax.set_xticks(x2)
+            ax.set_xticklabels(x, rotation=45, ha="right")
+            x = x2
+        elif len(x) < 50:
+            ax.set_xticks(x)
+        for label, yv in y.items():
+            pa = self.plot_args.copy()
+            x = np.arange(len(yv))
+            if "color" not in pa:
+                pa["color"] = self.get_color(label)
+            ax.plot(x, yv, label=label, **pa)
+            
+class BarPlotter(Plotter):
+    def __init__(self, process_fn: Callable[[list[ExpEnv]], tuple[list, dict[str, list]]]) -> None:
+        """process_fn: Callable[[list[ExpEnv]], tuple[list, dict[str, list]]], where the return format is (xticks, {label:ydata, ...})
+        """
+        self.process_fn = process_fn
+        super().__init__(plot_args={})
+    
+    def plot(self, ax: axes.Axes, envs: list[ExpEnv]):
+        data = self.process_fn(envs)
+        x, y = data
+        if isinstance(x[0], str):
+            x2 = np.arange(len(x))
+            ax.set_xticks(x2)
+            ax.set_xticklabels(x, rotation=45, ha="right")
+            x = x2
+        width = self.plot_args.get("width", 0.8) / len(y)
+        for i, (label, yv) in enumerate(y.items()):
+            x_shifted = x + (i - len(y) / 2) * width + width / 2
+            pa = self.plot_args.copy()
+            if "color" not in pa:
+                pa["color"] = self.get_color(label)
+            ax.bar(x_shifted, yv, width=width, label=label, **pa)
+            
+class HistPlotter(Plotter):
+    def __init__(self, process_fn: Callable[[list[ExpEnv]], dict[str, list]]) -> None:
+        """process_fn: Callable[[list[ExpEnv]], dict[str, list]], where the return format is {label: ydata, ...}
+        """
+        self.process_fn = process_fn
+        super().__init__(plot_args={})
+    
+    def plot(self, ax: axes.Axes, envs: list[ExpEnv]):
+        y = self.process_fn(envs)
+        pa = self.plot_args.copy()
+        if "color" not in pa:
+            pa["color"] = [self.get_color(l) for l in y.keys()]
+        ax.hist(x=list(y.values()), label=list(y.keys()), **pa)
+        
+class HeatmapPlotter(Plotter):
+    def __init__(self, process_fn: Callable[[list[ExpEnv]], np.ndarray], cmap: str = "viridis") -> None:
+        """process_fn: Callable[[list[ExpEnv]], np.ndarray], where the return format is a 2D array for heatmap values.
+        """
+        self.process_fn = process_fn
+        super().__init__(plot_args={"cmap": cmap})
+        
+    def plot(self, ax: axes.Axes, envs: list[ExpEnv]):
+        data = self.process_fn(envs)
+        im = ax.imshow(data, **self.plot_args)
+        plt.colorbar(im, ax=ax)
 
 def explot(
     envs: list[ExpEnv],
     axises: tuple[ExpAxis, ...],
-    process_fn: Callable[[list[ExpEnv]], tuple[str, tuple[list, dict[str, list]]]],
+    plot_func: Plotter,
     xlabel: str = "",
     translator: Callable[[str], str] | None = None,
-    plot_args: dict = {},
     ax_hook: Callable[[axes.Axes, list[ExpEnv]], None] | None = None,
-    colors: list[str] = [],
     nrows_cols: tuple[int, int] | None = None,
 ):
     """
@@ -150,12 +245,10 @@ def explot(
     Args:
         envs (list[ExpEnv]): A list of experiments
         axises (tuple[ExpAxis, ...]): Axises (X, Y) or (X, Y, Z)
-        process_fn (Callable[[list[ExpEnv]], tuple[str, tuple[list, dict[str, list]]]]): A process function that process envs to plot data. return format: ("plot"|"bar"|"hist", (xticks, {label:ydata, ...}))
+        plot_func (Plotter): A plotter instance for handling the plotting logic
         xlabel (str, optional): xlabel for all subplots. Defaults to "".
         translator (Callable[[str], str] | None, optional): Overwrite to string elements in plot. Defaults to None.
-        plot_args (dict, optional): Extra plot args. Defaults to {}.
         ax_hook (Callable[[axes.Axes, list[ExpEnv]], None] | None, optional): axes hook function called after subplot plotted. Defaults to None.
-        colors (list[str], optional): Color set to labels. Defaults to [].
         nrows_cols (tuple[int, int] | None, optional): (nrow, ncols) for subplots. Defaults to None.
 
     Raises:
@@ -173,57 +266,6 @@ def explot(
         figsize=(5 * nrows_cols[1], 4 * nrows_cols[0]),
         squeeze=False,
     )
-    colors_mem = {}
-    colors = colors.copy()
-
-    def get_color(label: str) -> str:
-        if label in colors_mem:
-            return colors_mem[label]
-        if colors:
-            color = colors.pop(0)
-        else:
-            color = get_random_color()
-        colors_mem[label] = color
-        return color
-
-    def autoplot(ax: axes.Axes, res_data, plot_args: dict = {}):
-        typ, data = res_data
-
-        if typ == "plot":
-            for k, v in DEFAULT_PLOT_ARGS.items():
-                plot_args.setdefault(k, v)
-            x, y = data
-            if isinstance(x[0], str):
-                x2 = np.arange(len(x))
-                ax.set_xticks(x2)
-                ax.set_xticklabels(x, rotation=45, ha="right")
-                x = x2
-            elif len(x) < 50:
-                ax.set_xticks(x)
-            for label, yv in y.items():
-                pa = plot_args.copy()
-                x = np.arange(len(yv))
-                if "color" not in pa:
-                    pa["color"] = get_color(label)
-                ax.plot(x, yv, label=label, **pa)
-        elif typ == "bar":
-            x, y = data
-            width = plot_args.get("width", 0.8) / len(y)
-            for i, (label, yv) in enumerate(y.items()):
-                x_shifted = x + (i - len(y) / 2) * width + width / 2
-                pa = plot_args.copy()
-                if "color" not in pa:
-                    pa["color"] = get_color(label)
-                ax.bar(x_shifted, yv, width=width, label=label, **pa)
-        elif typ == "hist":
-            y = data
-            pa = plot_args.copy()
-            if "color" not in pa:
-                pa["color"] = [get_color(l) for l in y.keys()]
-            ax.hist(x=list(y.values()), label=list(y.keys()), **pa)
-        else:
-            raise ValueError(f"Unsupported plot type: {typ}")
-        ax.grid(True)
 
     if translator is None:
         translator = lambda x: str(x)
@@ -239,8 +281,8 @@ def explot(
         if len(sub_envs) == 0:
             print(f"Warning: no envs for subplot ({x}, {y}, {z})")
         else:
-            data = process_fn(sub_envs)
-            autoplot(axij, data, plot_args)
+            plot_func.plot(axij, sub_envs)
+            axij.grid(True)
         if k == 0:
             if ic == 0:
                 axij.set_ylabel(trans_wrapper(y), fontsize=14)
