@@ -193,7 +193,7 @@ class LineCheck(Runner):
 class CmdExec(Runner):
     def __init__(
         self,
-        cmd_func: Callable[[ExpEnv], list[str]],
+        cmd_func: Callable[[ExpEnv, dict], list[str]],
         required_paths: list[Path],
         output_paths: list[Path],
         name: str = "cmd",
@@ -202,8 +202,9 @@ class CmdExec(Runner):
         self.cmd_func = cmd_func
 
     def run(self, exp_env: ExpEnv):
-        cmd = self.cmd_func(exp_env)
-        process = subprocess.Popen(cmd, env=os.environ)
+        environ = os.environ.copy()
+        cmd = self.cmd_func(exp_env, environ)
+        process = subprocess.Popen(cmd, env=environ)
         process.wait()
         return process.returncode
 
@@ -245,16 +246,28 @@ class SummeryTable(Runner):
         )
 
 
+_vllm_id = 0
+def _vllm_set_environ(environ: dict):
+    global _vllm_id
+    base = 20003 + _vllm_id * 100
+    _vllm_id += 1
+    environ["VLLM_PORT"] = str(base)
+    environ["MASTER_PORT"] = str(base + 20)
+    environ["VLLM_DP_MASTER_PORT"] = str(base + 40)
+
 def prefab_vllmeval(env_path: str = "env.json", output_path: str = "result.json"):
+    def cmd_func(env: ExpEnv, environ: dict):
+        _vllm_set_environ(environ)
+        return [
+            sys.executable,
+            "-m",
+            "lazyexp.vllmeval",
+            "--env",
+            env.get_output_path(env_path).as_posix(),
+        ]
     return [
         CmdExec(
-            cmd_func=lambda env: [
-                sys.executable,
-                "-m",
-                "lazyexp.vllmeval",
-                "--env",
-                env.get_output_path(env_path).as_posix(),
-            ],
+            cmd_func=cmd_func,
             required_paths=[Path(env_path)],
             output_paths=[Path(output_path)],
             name="vllm_runner",
